@@ -789,13 +789,13 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(neonCyan))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Icon(Icons.Default.Speed, contentDescription = null, tint = neonCyan, modifier = Modifier.size(12.dp))
-                                    Text("LINK SPEED", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Icon(Icons.Default.Speed, contentDescription = null, tint = neonCyan, modifier = Modifier.size(11.dp))
+                                    Text("LINK SPEED", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text("${metrics.linkSpeedMbps} Mbps", color = neonCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -819,13 +819,13 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(trackBlue))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = trackBlue, modifier = Modifier.size(12.dp))
-                                    Text("BAND", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = trackBlue, modifier = Modifier.size(11.dp))
+                                    Text("BAND", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(if (metrics.frequencyBand.isNotEmpty()) metrics.frequencyBand else "2.4 GHz", color = trackBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -849,13 +849,13 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(pingStatColor))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(12.dp))
-                                    Text("LATENCY", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(11.dp))
+                                    Text("LATENCY", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(if (metrics.pingMs >= 0) "${metrics.pingMs} ms" else stringResource(id = R.string.ping_offline), color = pingStatColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -886,17 +886,14 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(limitBorderColor))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(if (metrics.isLimitExceeded) Icons.Default.Warning else Icons.Default.Speed, contentDescription = null, tint = limitBorderColor, modifier = Modifier.size(12.dp))
-                                        Text(stringResource(id = R.string.daily_limit_title), color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = limitBorderColor.copy(alpha = 0.7f), modifier = Modifier.size(10.dp))
+                                    Icon(if (metrics.isLimitExceeded) Icons.Default.Warning else Icons.Default.Speed, contentDescription = null, tint = limitBorderColor, modifier = Modifier.size(11.dp))
+                                    Text(stringResource(id = R.string.daily_limit_title), color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(
@@ -950,10 +947,10 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(neonCyan))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = neonCyan, modifier = Modifier.size(12.dp))
-                                    Text("LINK & BAND", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = neonCyan, modifier = Modifier.size(11.dp))
+                                    Text("LINK & BAND", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text("${metrics.linkSpeedMbps}M ${if (metrics.frequencyBand.isNotEmpty()) metrics.frequencyBand else "Wi-Fi"}", color = neonCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -977,10 +974,10 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(pingStatColor))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(12.dp))
-                                    Text("LATENCY", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(11.dp))
+                                    Text("LATENCY", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(if (metrics.pingMs >= 0) "${metrics.pingMs} ms" else stringResource(id = R.string.ping_offline), color = pingStatColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1008,7 +1005,7 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(neonCyan))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 if (metrics.hasUsagePermission) {
                                     Box(
                                         modifier = Modifier
@@ -1033,14 +1030,11 @@ fun WifiMonitorCockpitContent(
                                 }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Default.DataUsage, contentDescription = null, tint = neonCyan, modifier = Modifier.size(12.dp))
-                                        Text(stringResource(id = R.string.daily_usage_title), color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = neonCyan.copy(alpha = 0.7f), modifier = Modifier.size(11.dp))
+                                    Icon(Icons.Default.DataUsage, contentDescription = null, tint = neonCyan, modifier = Modifier.size(11.dp))
+                                    Text(stringResource(id = R.string.daily_usage_title), color = inkDim, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(metrics.todayUsageFormatted, color = neonCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1069,17 +1063,14 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(limitBorderColor))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(if (metrics.isLimitExceeded) Icons.Default.Warning else Icons.Default.Speed, contentDescription = null, tint = limitBorderColor, modifier = Modifier.size(12.dp))
-                                        Text(stringResource(id = R.string.daily_limit_title), color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = limitBorderColor.copy(alpha = 0.7f), modifier = Modifier.size(10.dp))
+                                    Icon(if (metrics.isLimitExceeded) Icons.Default.Warning else Icons.Default.Speed, contentDescription = null, tint = limitBorderColor, modifier = Modifier.size(11.dp))
+                                    Text(stringResource(id = R.string.daily_limit_title), color = inkDim, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(
@@ -1133,10 +1124,10 @@ fun WifiMonitorCockpitContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Box(modifier = Modifier.fillMaxWidth().height(2.5.dp).background(pingStatColor))
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(12.dp))
-                                    Text("PING LATENCY", color = inkDim, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = pingStatColor, modifier = Modifier.size(11.dp))
+                                    Text("LATENCY", color = inkDim, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
                                 Text(if (metrics.pingMs >= 0) "${metrics.pingMs} ms" else stringResource(id = R.string.ping_offline), color = pingStatColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1258,7 +1249,7 @@ fun WifiMonitorCockpitContent(
             onClick = onOpenSettings,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .defaultMinSize(minHeight = 44.dp)
                 .testTag("wifi_monitor_config_button"),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -1266,7 +1257,7 @@ fun WifiMonitorCockpitContent(
                 contentColor = neonCyan
             ),
             border = BorderStroke(1.dp, neonCyan.copy(alpha = 0.45f)),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1279,15 +1270,18 @@ fun WifiMonitorCockpitContent(
                     modifier = Modifier.size(16.dp),
                     tint = neonCyan
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = stringResource(id = R.string.dialog_set_limit_title),
                     color = neonCyan,
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))

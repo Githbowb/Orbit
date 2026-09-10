@@ -516,9 +516,12 @@ fun OrbitTabContent(
     val inkLight = Color(0xFFEEF0F6)
     val inkDim = Color(0xFF5A6178)
 
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -625,7 +628,9 @@ fun OrbitTabContent(
                         text = stringResource(id = R.string.floating_service),
                         color = Color(0xFF8E94A8),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        softWrap = true
                     )
                 }
             }
@@ -662,13 +667,15 @@ fun OrbitTabContent(
                         text = stringResource(id = R.string.bubble_size_dp),
                         color = Color(0xFF8E94A8),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        softWrap = true
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -908,7 +915,7 @@ fun SystemPerformanceRamCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -928,7 +935,10 @@ fun SystemPerformanceRamCard(
                             )
                         }
 
-                        Column(verticalArrangement = Arrangement.Center) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
+                        ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -942,9 +952,11 @@ fun SystemPerformanceRamCard(
                                 Text(
                                     text = if (selectedMonitorMode == WifiMonitorPreferences.MODE_RAM) "LIVE TELEMETRY // HARDWARE" else "LIVE TELEMETRY // NETWORK",
                                     color = neonCyan,
-                                    fontSize = 9.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 1.2.sp
+                                    letterSpacing = 0.8.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Spacer(modifier = Modifier.height(2.dp))
@@ -954,8 +966,9 @@ fun SystemPerformanceRamCard(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.2.sp,
-                                maxLines = 1,
-                                softWrap = false
+                                maxLines = 2,
+                                softWrap = true,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -980,12 +993,12 @@ fun SystemPerformanceRamCard(
                                     selectedMonitorMode = WifiMonitorPreferences.MODE_RAM
                                     WifiMonitorPreferences.setSelectedMode(context, WifiMonitorPreferences.MODE_RAM)
                                 }
-                                .padding(horizontal = 9.dp, vertical = 4.dp),
+                                .padding(horizontal = 7.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Memory,
@@ -1011,12 +1024,12 @@ fun SystemPerformanceRamCard(
                                     selectedMonitorMode = WifiMonitorPreferences.MODE_WIFI
                                     WifiMonitorPreferences.setSelectedMode(context, WifiMonitorPreferences.MODE_WIFI)
                                 }
-                                .padding(horizontal = 9.dp, vertical = 4.dp),
+                                .padding(horizontal = 7.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Wifi,
@@ -1335,22 +1348,22 @@ fun SystemPerformanceRamCard(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 9.dp, vertical = 9.dp)
+                                    .padding(horizontal = 7.dp, vertical = 8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = null,
                                         tint = emeraldGreen,
-                                        modifier = Modifier.size(12.dp)
+                                        modifier = Modifier.size(11.dp)
                                     )
                                     Text(
                                         text = stringResource(id = R.string.ram_available_title),
                                         color = inkDim,
-                                        fontSize = 9.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1405,22 +1418,22 @@ fun SystemPerformanceRamCard(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 9.dp, vertical = 9.dp)
+                                    .padding(horizontal = 7.dp, vertical = 8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Storage,
                                         contentDescription = null,
                                         tint = trackBlue,
-                                        modifier = Modifier.size(12.dp)
+                                        modifier = Modifier.size(11.dp)
                                     )
                                     Text(
                                         text = stringResource(id = R.string.ram_total_title),
                                         color = inkDim,
-                                        fontSize = 9.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1476,37 +1489,27 @@ fun SystemPerformanceRamCard(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 9.dp, vertical = 9.dp)
+                                    .padding(horizontal = 7.dp, vertical = 8.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Layers,
-                                            contentDescription = null,
-                                            tint = signalOrange,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            text = stringResource(id = R.string.app_heap_title),
-                                            color = inkDim,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
                                     Icon(
-                                        imageVector = Icons.Default.CleaningServices,
-                                        contentDescription = stringResource(id = R.string.btn_clean_ram),
-                                        tint = signalOrange.copy(alpha = 0.8f),
+                                        imageVector = Icons.Default.Layers,
+                                        contentDescription = null,
+                                        tint = signalOrange,
                                         modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(id = R.string.app_heap_title),
+                                        color = inkDim,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(5.dp))
