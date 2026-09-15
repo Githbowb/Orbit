@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <!-- Queries to find launchable apps instead of QUERY_ALL_PACKAGES -->
     <queries>
@@ -71,6 +72,28 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Provides a persistent floating trigger bubble for users to quickly overlay and launch their apps" />
         </service>
+
+        <!-- Custom Persistent Shortcut Notification Service -->
+        <service
+            android:name=".shortcut.ShortcutNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Provides an ongoing shortcut notification to launch user selected application" />
+        </service>
+
+        <!-- Receiver to restore persistent shortcut notification across device reboots -->
+        <receiver
+            android:name=".shortcut.ShortcutBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Google ML Kit Text Recognition dependency meta-data -->
         <meta-data

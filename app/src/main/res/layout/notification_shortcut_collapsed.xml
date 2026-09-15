@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/notif_collapsed_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="88dp"
+    android:background="#12131A">
+
+    <!-- Full Background Media Cover Image -->
+    <ImageView
+        android:id="@+id/notif_bg_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <!-- Dark Contrast Scrim -->
+    <ImageView
+        android:id="@+id/notif_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/bg_notif_scrim_collapsed"
+        android:contentDescription="@null" />
+
+    <!-- Top Header Row -->
+    <RelativeLayout
+        android:id="@+id/notif_header_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="9dp">
+
+        <ImageView
+            android:id="@+id/notif_orbit_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_bubble_atom_core"
+            android:tint="#FF6B35"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/notif_header_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/notif_orbit_icon"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="6dp"
+            android:text="Orbit • Shortcut • now"
+            android:textColor="#E0E5F0"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:shadowColor="#E6000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/notif_header_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:text="COVER ART"
+            android:textColor="#FF6B35"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:shadowColor="#E6000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4" />
+    </RelativeLayout>
+
+    <!-- Main Content Row: App Icon + App Name/Title + Subtitle + Chevron -->
+    <RelativeLayout
+        android:id="@+id/notif_content_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/notif_header_row"
+        android:layout_marginTop="5dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="9dp">
+
+        <!-- App Icon -->
+        <FrameLayout
+            android:id="@+id/notif_icon_container"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="12dp">
+
+            <ImageView
+                android:id="@+id/notif_app_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:contentDescription="@null" />
+        </FrameLayout>
+
+        <!-- Chevron right icon on the right edge -->
+        <ImageView
+            android:id="@+id/notif_chevron"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_chevron_right"
+            android:tint="#D9FFFFFF"
+            android:contentDescription="@null" />
+
+        <!-- Title and Body between Icon and Chevron -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/notif_icon_container"
+            android:layout_toStartOf="@id/notif_chevron"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/notif_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:shadowColor="#E6000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="5"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/notif_body"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:textColor="#E8EDF5"
+                android:textSize="12.5sp"
+                android:shadowColor="#E6000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="4"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </RelativeLayout>
+</RelativeLayout>

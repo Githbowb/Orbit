@@ -18,6 +18,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import com.example.shortcut.ShortcutNotificationManager
+import com.example.shortcut.ShortcutNotificationPreferences
+import com.example.shortcut.ShortcutNotificationScreen
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.animation.AnimatedVisibility
@@ -237,6 +240,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         // Query permissions in real-time when returning from system settings screens
@@ -328,6 +336,21 @@ fun MainScreen(
     var currentUsername by remember { mutableStateOf(ThemePreferences.getUsername(context).ifBlank { "User" }) }
 
     var isUsageSkipped by remember { mutableStateOf(ThemePreferences.isUsagePermissionSkipped(context)) }
+
+    val activity = context as? Activity
+    var openShortcutDirectly by remember {
+        mutableStateOf(activity?.intent?.getBooleanExtra(ShortcutNotificationManager.EXTRA_OPEN_SHORTCUT_CONFIG, false) == true)
+    }
+    LaunchedEffect(Unit) {
+        val appNotFoundPkg = activity?.intent?.getStringExtra(ShortcutNotificationManager.EXTRA_SHORTCUT_APP_NOT_FOUND)
+        if (!appNotFoundPkg.isNullOrBlank()) {
+            Toast.makeText(context, "Target app is unavailable. Please choose a new app.", Toast.LENGTH_LONG).show()
+            selectedTab = MainTab.STUDIO
+            openShortcutDirectly = true
+        } else if (openShortcutDirectly) {
+            selectedTab = MainTab.STUDIO
+        }
+    }
 
     LaunchedEffect(isUsageGranted) {
         if (isUsageGranted && isUsageSkipped) {
@@ -456,7 +479,16 @@ fun MainScreen(
                     accentColor = accentColor,
                     activeTheme = activeTheme,
                     onThemeChanged = onThemeChanged,
-                    isServiceRunning = isServiceRunning
+                    isServiceRunning = isServiceRunning,
+                    onRequestNotification = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            isNotificationGrantedFlow.value = true
+                        }
+                    },
+                    isNotificationGranted = isNotificationGranted,
+                    initialStudioMode = if (openShortcutDirectly) 3 else 0
                 )
                 MainTab.TOOLS -> ToolsTabContent(
                     context = context,
@@ -2465,7 +2497,10 @@ fun StudioTabContent(
     accentColor: Color,
     activeTheme: NeonTheme,
     onThemeChanged: (NeonTheme) -> Unit,
-    isServiceRunning: Boolean
+    isServiceRunning: Boolean,
+    onRequestNotification: () -> Unit = {},
+    isNotificationGranted: Boolean = true,
+    initialStudioMode: Int = 0
 ) {
     val coroutineScope = rememberCoroutineScope()
     val database = remember { OrbitDatabase.getDatabase(context) }
@@ -2478,8 +2513,14 @@ fun StudioTabContent(
     var bubbleOpacity by remember { mutableStateOf(ThemePreferences.getBubbleOpacity(context)) }
     var borderStroke by remember { mutableStateOf(ThemePreferences.getBorderStrokeDp(context).toFloat()) }
     var innerTintColor by remember { mutableStateOf(ThemePreferences.getInnerTintColor(context)) }
-    var studioMode by remember { mutableStateOf(0) } // 0 = Presets & Upload, 1 = Canvas Painter, 2 = My Collection
+    var studioMode by remember { mutableStateOf(initialStudioMode) } // 0 = Presets & Upload, 1 = Canvas Painter, 2 = My Collection, 3 = Shortcut Notification
     var showSavedMessage by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialStudioMode) {
+        if (initialStudioMode != 0) {
+            studioMode = initialStudioMode
+        }
+    }
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var customImageVersion by remember { mutableStateOf(0) }
@@ -2563,7 +2604,7 @@ fun StudioTabContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp)
-            .then(if (studioMode != 2) Modifier.verticalScroll(scrollState) else Modifier),
+            .then(if (studioMode != 2 && studioMode != 3) Modifier.verticalScroll(scrollState) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(16.dp))
@@ -2590,41 +2631,44 @@ fun StudioTabContent(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
 
-            // Compact Mode Switcher Tabs
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0D0E15))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                    .padding(3.dp)
-            ) {
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 4-Tab Mode Switcher Tabs
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF0D0E15))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            val tabs = listOf(
+                0 to stringResource(id = R.string.presets),
+                1 to stringResource(id = R.string.canvas),
+                2 to stringResource(id = R.string.tab_collection),
+                3 to stringResource(id = R.string.tab_shortcut_notif)
+            )
+            tabs.forEach { (modeIdx, title) ->
+                val isSelected = studioMode == modeIdx
                 Box(
                     modifier = Modifier
+                        .weight(1f)
                         .clip(RoundedCornerShape(9.dp))
-                        .background(if (studioMode == 0) signalOrange.copy(alpha = 0.2f) else Color.Transparent)
-                        .clickable { studioMode = 0 }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .background(if (isSelected) signalOrange.copy(alpha = 0.2f) else Color.Transparent)
+                        .clickable { studioMode = modeIdx }
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(text = stringResource(id = R.string.presets), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (studioMode == 0) signalOrange else inkDim)
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (studioMode == 1) signalOrange.copy(alpha = 0.2f) else Color.Transparent)
-                        .clickable { studioMode = 1 }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(text = stringResource(id = R.string.canvas), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (studioMode == 1) signalOrange else inkDim)
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (studioMode == 2) signalOrange.copy(alpha = 0.2f) else Color.Transparent)
-                        .clickable { studioMode = 2 }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(text = stringResource(id = R.string.tab_collection), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (studioMode == 2) signalOrange else inkDim)
+                    Text(
+                        text = title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) signalOrange else inkDim,
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -2640,6 +2684,14 @@ fun StudioTabContent(
                 isServiceRunning = isServiceRunning,
                 onNavigateToCanvas = { studioMode = 1 },
                 onNavigateToUpload = { imagePickerLauncher.launch("image/*") }
+            )
+        } else if (studioMode == 3) {
+            // Dedicated "Shortcut Notification" visual configuration section
+            ShortcutNotificationScreen(
+                onDismiss = null,
+                onRequestNotificationPermission = onRequestNotification,
+                isNotificationPermissionGranted = isNotificationGranted,
+                isEmbedded = true
             )
         } else {
 
