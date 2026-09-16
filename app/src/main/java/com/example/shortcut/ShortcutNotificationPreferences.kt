@@ -9,6 +9,7 @@ import android.util.Log
 import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
+import java.util.UUID
 
 /**
  * Manages user preferences for multiple custom persistent shortcut notifications.
@@ -63,7 +64,7 @@ object ShortcutNotificationPreferences {
             }
         }
 
-        // Migration from legacy single-shortcut prefs or initialize default
+        // Migration from legacy single-shortcut prefs only if valid legacy shortcut was configured
         val legacyPackage = prefs.getString(KEY_PACKAGE_NAME, "") ?: ""
         val legacyAppName = prefs.getString(KEY_APP_NAME, "") ?: ""
         val legacyTitle = prefs.getString(KEY_TITLE, "") ?: ""
@@ -75,23 +76,29 @@ object ShortcutNotificationPreferences {
         val legacyBannerFile = File(context.filesDir, BANNER_FILE_NAME)
         val hasLegacyBanner = legacyBannerFile.exists()
 
-        val defaultItem = ShortcutItem(
-            id = DEFAULT_SHORTCUT_ID,
-            notificationId = BASE_NOTIFICATION_ID,
-            isEnabled = legacyEnabled,
-            isOngoing = legacyOngoing,
-            packageName = legacyPackage,
-            appName = legacyAppName,
-            title = legacyTitle,
-            body = legacyBody,
-            iconType = legacyIconType,
-            bannerFileName = if (hasLegacyBanner) BANNER_FILE_NAME else null,
-            bannerVersion = prefs.getInt(KEY_BANNER_VERSION, 0)
-        )
+        // Only create a shortcut if the user actually configured an app previously
+        if (legacyPackage.isNotBlank()) {
+            val defaultItem = ShortcutItem(
+                id = DEFAULT_SHORTCUT_ID,
+                notificationId = BASE_NOTIFICATION_ID,
+                isEnabled = legacyEnabled,
+                isOngoing = legacyOngoing,
+                packageName = legacyPackage,
+                appName = legacyAppName,
+                title = legacyTitle,
+                body = legacyBody,
+                iconType = legacyIconType,
+                bannerFileName = if (hasLegacyBanner) BANNER_FILE_NAME else null,
+                bannerVersion = prefs.getInt(KEY_BANNER_VERSION, 0)
+            )
 
-        val initialList = listOf(defaultItem)
-        saveAllShortcutsList(context, initialList)
-        return initialList
+            val initialList = listOf(defaultItem)
+            saveAllShortcutsList(context, initialList)
+            return initialList
+        }
+
+        // Clean slate: return empty list without persisting phantom defaults
+        return emptyList()
     }
 
     /**
@@ -162,8 +169,28 @@ object ShortcutNotificationPreferences {
         return maxOf(BASE_NOTIFICATION_ID, maxId + 1)
     }
 
+    fun createNewShortcut(context: Context, pkg: String = "", appName: String = ""): ShortcutItem {
+        val nextId = getNextNotificationId(context)
+        return ShortcutItem(
+            id = UUID.randomUUID().toString(),
+            notificationId = nextId,
+            isEnabled = true,
+            isOngoing = true,
+            packageName = pkg,
+            appName = appName,
+            title = appName,
+            body = "",
+            iconType = ICON_TYPE_APP,
+            bannerFileName = null,
+            bannerVersion = 0,
+            createdAt = System.currentTimeMillis()
+        )
+    }
+
     fun loadBannerBitmap(context: Context, item: ShortcutItem): Bitmap? {
-        val fileName = item.bannerFileName ?: return null
+        val fileName = item.bannerFileName
+            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
+            ?: return null
         val file = File(context.filesDir, fileName)
         if (!file.exists()) return null
         return try {
@@ -175,7 +202,9 @@ object ShortcutNotificationPreferences {
     }
 
     fun hasBannerImage(context: Context, item: ShortcutItem): Boolean {
-        val fileName = item.bannerFileName ?: return false
+        val fileName = item.bannerFileName
+            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
+            ?: return false
         return File(context.filesDir, fileName).exists()
     }
 
@@ -194,8 +223,10 @@ object ShortcutNotificationPreferences {
     }
 
     fun deleteBannerBitmapForShortcut(context: Context, item: ShortcutItem) {
-        item.bannerFileName?.let { fileName ->
-            val file = File(context.filesDir, fileName)
+        val fileName = item.bannerFileName
+            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
+        fileName?.let { name ->
+            val file = File(context.filesDir, name)
             if (file.exists()) {
                 file.delete()
             }
@@ -234,6 +265,22 @@ object ShortcutNotificationPreferences {
         val shortcuts = getAllShortcuts(context).toMutableList()
         if (shortcuts.isNotEmpty()) {
             shortcuts[0] = shortcuts[0].copy(packageName = packageName, appName = appName)
+            saveAllShortcutsList(context, shortcuts)
+        }
+    }
+
+    fun setTitle(context: Context, title: String) {
+        val shortcuts = getAllShortcuts(context).toMutableList()
+        if (shortcuts.isNotEmpty()) {
+            shortcuts[0] = shortcuts[0].copy(title = title)
+            saveAllShortcutsList(context, shortcuts)
+        }
+    }
+
+    fun setBody(context: Context, body: String) {
+        val shortcuts = getAllShortcuts(context).toMutableList()
+        if (shortcuts.isNotEmpty()) {
+            shortcuts[0] = shortcuts[0].copy(body = body)
             saveAllShortcutsList(context, shortcuts)
         }
     }
