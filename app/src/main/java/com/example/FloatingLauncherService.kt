@@ -137,6 +137,40 @@ class FloatingLauncherService : Service() {
 
         @Volatile
         var instance: FloatingLauncherService? = null
+
+        /**
+         * Instantly respawns the launcher notification when swiped away by the user.
+         */
+        fun repostNotificationImmediately(context: Context) {
+            val service = instance
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (service != null) {
+                val notif = service.buildNotification(service.isBubbleHidden)
+                manager.notify(NOTIFICATION_ID, notif)
+            } else if (Settings.canDrawOverlays(context)) {
+                val showIntent = Intent(context, FloatingLauncherService::class.java).apply {
+                    action = ACTION_SHOW_BUBBLE
+                }
+                val pendingIntent = PendingIntent.getService(
+                    context,
+                    1,
+                    showIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                val deletePendingIntent = com.example.shortcut.NotificationDismissReceiver.createLauncherDeleteIntent(context)
+                val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setContentTitle(context.getString(R.string.app_name))
+                    .setContentText(context.getString(R.string.orbit_launcher_active))
+                    .setSmallIcon(android.R.drawable.ic_dialog_dialer)
+                    .setContentIntent(pendingIntent)
+                    .setDeleteIntent(deletePendingIntent)
+                    .setOngoing(true)
+                    .setAutoCancel(false)
+                    .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                    .build()
+                manager.notify(NOTIFICATION_ID, notif)
+            }
+        }
     }
 
     override fun onCreate() {
@@ -1039,15 +1073,7 @@ private class BubbleBackgroundDrawable(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val deleteIntent = Intent(this, FloatingLauncherService::class.java).apply {
-            action = ACTION_NOTIFICATION_DISMISSED
-        }
-        val deletePendingIntent = PendingIntent.getService(
-            this,
-            2,
-            deleteIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val deletePendingIntent = com.example.shortcut.NotificationDismissReceiver.createLauncherDeleteIntent(this)
 
         val title = getString(R.string.app_name)
         val text = if (isBackgroundMode) {

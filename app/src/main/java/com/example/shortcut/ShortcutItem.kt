@@ -4,7 +4,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 /**
- * Represents a single custom persistent shortcut notification.
+ * Represents a single custom shortcut notification.
  */
 data class ShortcutItem(
     val id: String = UUID.randomUUID().toString(),
@@ -16,14 +16,17 @@ data class ShortcutItem(
     val title: String = "",
     val body: String = "",
     val iconType: String = ShortcutNotificationPreferences.ICON_TYPE_APP,
-    val bannerFileName: String? = null,
-    val bannerVersion: Int = 0,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun displayTitle(): String {
         if (title.isNotBlank()) return title
-        if (appName.isNotBlank()) return appName
-        return "App Shortcut"
+        if (appName.isNotBlank()) return "Open $appName"
+        return "Open App"
+    }
+
+    fun displayBody(): String {
+        if (body.isNotBlank()) return body
+        return "Tap to launch"
     }
 
     fun toJson(): JSONObject {
@@ -37,15 +40,12 @@ data class ShortcutItem(
             put("title", title)
             put("body", body)
             put("iconType", iconType)
-            put("bannerFileName", bannerFileName ?: "")
-            put("bannerVersion", bannerVersion)
             put("createdAt", createdAt)
         }
     }
 
     companion object {
         fun fromJson(json: JSONObject): ShortcutItem {
-            val bannerFile = json.optString("bannerFileName", "").takeIf { it.isNotBlank() }
             return ShortcutItem(
                 id = json.optString("id", UUID.randomUUID().toString()),
                 notificationId = json.optInt("notificationId", 2002),
@@ -56,8 +56,6 @@ data class ShortcutItem(
                 title = json.optString("title", ""),
                 body = json.optString("body", ""),
                 iconType = json.optString("iconType", ShortcutNotificationPreferences.ICON_TYPE_APP),
-                bannerFileName = bannerFile,
-                bannerVersion = json.optInt("bannerVersion", 0),
                 createdAt = json.optLong("createdAt", System.currentTimeMillis())
             )
         }

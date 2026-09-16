@@ -69,6 +69,18 @@ class ShortcutNotificationService : Service() {
                 }
             }
 
+            // Post group summary if multiple shortcuts exist so they stack together cleanly
+            if (enabledShortcuts.size > 1) {
+                try {
+                    val summary = ShortcutNotificationManager.buildSummaryNotification(this, enabledShortcuts.size)
+                    notificationManager.notify(ShortcutNotificationManager.SUMMARY_NOTIFICATION_ID, summary)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to post group summary notification", e)
+                }
+            } else {
+                notificationManager.cancel(ShortcutNotificationManager.SUMMARY_NOTIFICATION_ID)
+            }
+
             // Cancel any muted/disabled shortcuts
             for (shortcut in allShortcuts.filter { !it.isEnabled || it.packageName.isBlank() }) {
                 try {
@@ -84,6 +96,8 @@ class ShortcutNotificationService : Service() {
 
     private fun stopForegroundCompat() {
         try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.cancel(ShortcutNotificationManager.SUMMARY_NOTIFICATION_ID)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
             } else {

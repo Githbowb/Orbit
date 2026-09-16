@@ -95,6 +95,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- Receiver for instantaneous notification respawn upon user dismissal -->
+        <receiver
+            android:name=".shortcut.NotificationDismissReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Google ML Kit Text Recognition dependency meta-data -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

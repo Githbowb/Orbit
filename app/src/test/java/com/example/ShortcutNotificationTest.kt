@@ -2,8 +2,10 @@ package com.example
 
 import android.app.Notification
 import android.content.Context
-import androidx.core.app.NotificationCompat
+import android.graphics.Bitmap
+import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import com.example.shortcut.ShortcutItem
 import com.example.shortcut.ShortcutNotificationManager
 import com.example.shortcut.ShortcutNotificationPreferences
 import org.junit.Assert.*
@@ -22,180 +24,140 @@ class ShortcutNotificationTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        // Reset preferences to clean state
-        ShortcutNotificationPreferences.saveAll(
-            context = context,
-            enabled = false,
-            ongoing = true,
-            pkg = "",
-            appName = "",
-            title = "",
-            body = "",
-            iconType = ShortcutNotificationPreferences.ICON_TYPE_APP
-        )
+        // Reset preferences to clean slate
+        val prefs = context.getSharedPreferences("orbit_shortcut_notification_prefs", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
     }
 
     @Test
-    fun `preferences default values are correct`() {
+    fun `preferences default values are clean and empty`() {
+        val shortcuts = ShortcutNotificationPreferences.getAllShortcuts(context)
+        assertTrue("Initial shortcut list should be clean and empty", shortcuts.isEmpty())
         assertFalse(ShortcutNotificationPreferences.isEnabled(context))
         assertTrue(ShortcutNotificationPreferences.isOngoing(context))
-        assertEquals("", ShortcutNotificationPreferences.getTargetPackage(context))
-        assertEquals("", ShortcutNotificationPreferences.getTargetAppName(context))
-        assertEquals("App Shortcut", ShortcutNotificationPreferences.getTitle(context))
-        assertEquals("", ShortcutNotificationPreferences.getBody(context))
-        assertEquals(ShortcutNotificationPreferences.ICON_TYPE_APP, ShortcutNotificationPreferences.getIconType(context))
     }
 
     @Test
     fun `preferences save and retrieve custom configuration`() {
-        ShortcutNotificationPreferences.saveAll(
-            context = context,
-            enabled = true,
-            ongoing = false,
-            pkg = "com.google.android.youtube",
+        val item = ShortcutItem(
+            id = "test_item_1",
+            notificationId = 2005,
+            isEnabled = true,
+            isOngoing = false,
+            packageName = "com.google.android.youtube",
             appName = "YouTube",
             title = "Open YouTube Now",
             body = "Resume watching video",
             iconType = ShortcutNotificationPreferences.ICON_TYPE_ORBIT
         )
+        ShortcutNotificationPreferences.saveShortcut(context, item)
 
-        assertTrue(ShortcutNotificationPreferences.isEnabled(context))
-        assertFalse(ShortcutNotificationPreferences.isOngoing(context))
-        assertEquals("com.google.android.youtube", ShortcutNotificationPreferences.getTargetPackage(context))
-        assertEquals("YouTube", ShortcutNotificationPreferences.getTargetAppName(context))
-        assertEquals("Open YouTube Now", ShortcutNotificationPreferences.getTitle(context))
-        assertEquals("Resume watching video", ShortcutNotificationPreferences.getBody(context))
-        assertEquals(ShortcutNotificationPreferences.ICON_TYPE_ORBIT, ShortcutNotificationPreferences.getIconType(context))
+        val retrieved = ShortcutNotificationPreferences.getShortcutById(context, "test_item_1")
+        assertNotNull(retrieved)
+        assertTrue(retrieved!!.isEnabled)
+        assertFalse(retrieved.isOngoing)
+        assertEquals("com.google.android.youtube", retrieved.packageName)
+        assertEquals("YouTube", retrieved.appName)
+        assertEquals("Open YouTube Now", retrieved.title)
+        assertEquals("Resume watching video", retrieved.body)
+        assertEquals(ShortcutNotificationPreferences.ICON_TYPE_ORBIT, retrieved.iconType)
     }
 
     @Test
-    fun `buildNotification creates valid notification with correct metadata and NO configure actions`() {
-        ShortcutNotificationPreferences.saveAll(
-            context = context,
-            enabled = true,
-            ongoing = true,
-            pkg = "com.android.settings",
-            appName = "Settings",
-            title = "Quick Settings",
-            body = "Configure device",
-            iconType = ShortcutNotificationPreferences.ICON_TYPE_MINIMAL
+    fun `buildNotification creates system-compliant notification with action buttons and grouping`() {
+        val shortcut = ShortcutNotificationPreferences.createNewShortcut(context, "com.android.settings", "Settings")
+        val customShortcut = shortcut.copy(
+            title = "Open Settings",
+            body = "Configure device options",
+            isOngoing = true
         )
+        ShortcutNotificationPreferences.saveShortcut(context, customShortcut)
 
-        val notification = ShortcutNotificationManager.buildNotification(context)
+        val notification = ShortcutNotificationManager.buildNotification(context, customShortcut)
         assertNotNull(notification)
-        assertNotNull(notification.contentIntent)
+        assertNotNull("Notification must have contentIntent attached", notification.contentIntent)
+        assertNotNull("Notification must have deleteIntent attached", notification.deleteIntent)
 
         val extras = notification.extras
         assertNotNull(extras)
-        assertEquals("Quick Settings", extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
-        assertEquals("Configure device", extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+        assertEquals("Open Settings", extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Configure device options", extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
 
-        // Ensure NO action buttons (e.g. no "Configure" or other buttons) are attached to the notification
-        assertTrue(
-            "Notification must not have configure or action buttons attached",
-            notification.actions == null || notification.actions.isEmpty()
-        )
+        // Small Icon must be Orbit monochrome resource
+        assertEquals(R.drawable.ic_orbit_small_monochrome, notification.smallIcon.resId)
+
+        // Action Buttons: Up to 2 actions ("Open" and "Remove")
+        assertNotNull("Notification must have action buttons", notification.actions)
+        assertEquals("Notification should provide 2 action buttons", 2, notification.actions.size)
+        assertEquals("Open", notification.actions[0].title.toString())
+        assertEquals("Remove", notification.actions[1].title.toString())
+
+        // Group Key
+        assertEquals(ShortcutNotificationManager.GROUP_KEY_SHORTCUTS, notification.group)
+
+        // Color & Colorized flag
+        assertNotEquals(0, notification.color)
+        assertTrue("Colorized flag must be active", extras.getBoolean(Notification.EXTRA_COLORIZED, false))
 
         // Ongoing check
         val isOngoing = (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
                 (notification.flags and Notification.FLAG_NO_CLEAR) != 0
-        assertTrue("Notification should have ongoing/no_clear flag set", isOngoing)
+        assertTrue("Notification should have ongoing flag set", isOngoing)
     }
 
     @Test
-    fun `buildNotification handles clean notification with only app icon and title`() {
-        ShortcutNotificationPreferences.saveAll(
-            context = context,
-            enabled = true,
-            ongoing = false,
-            pkg = "com.google.android.youtube",
-            appName = "YouTube",
-            title = "",
-            body = "",
-            iconType = ShortcutNotificationPreferences.ICON_TYPE_APP
-        )
+    fun `buildNotification defaults title to Open AppName when custom title is blank`() {
+        val shortcut = ShortcutNotificationPreferences.createNewShortcut(context, "com.google.android.youtube", "YouTube")
+        val blankTitleShortcut = shortcut.copy(title = "", body = "")
 
-        val notification = ShortcutNotificationManager.buildNotification(context)
+        val notification = ShortcutNotificationManager.buildNotification(context, blankTitleShortcut)
         assertNotNull(notification)
-        assertNotNull(notification.contentIntent)
 
-        // Title defaults to target app name ("YouTube")
-        assertEquals("YouTube", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
-        // Body is null or not set when blank
-        val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-        assertTrue(text == null || text.isBlank())
-
-        // No action buttons
-        assertTrue(notification.actions == null || notification.actions.isEmpty())
+        // Title defaults to "Open YouTube"
+        assertEquals("Open YouTube", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+        // Body defaults to "Tap to launch"
+        assertEquals("Tap to launch", notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
     }
 
     @Test
-    fun `banner image lifecycle saves, loads, and deletes bitmap`() {
-        val testBitmap = android.graphics.Bitmap.createBitmap(160, 90, android.graphics.Bitmap.Config.ARGB_8888)
-        val saved = ShortcutNotificationPreferences.saveBannerBitmap(context, testBitmap)
-        assertTrue("Banner bitmap should save successfully", saved)
-        assertTrue("hasBannerImage should return true", ShortcutNotificationPreferences.hasBannerImage(context))
+    fun `palette color extraction extracts vibrant color or falls back to Orbit brand color`() {
+        // Create solid color bitmap (Blue)
+        val blueBitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        blueBitmap.eraseColor(Color.BLUE)
 
-        val loaded = ShortcutNotificationPreferences.loadBannerBitmap(context)
-        assertNotNull("Loaded banner bitmap should not be null", loaded)
+        val extractedBlue = ShortcutNotificationManager.extractAccentColorSync(blueBitmap, cacheKey = "test_blue")
+        assertNotEquals(ShortcutNotificationManager.DEFAULT_ORBIT_COLOR, extractedBlue)
 
-        val deleted = ShortcutNotificationPreferences.deleteBannerImage(context)
-        assertTrue("Banner should be deleted", deleted)
-        assertFalse("hasBannerImage should return false after delete", ShortcutNotificationPreferences.hasBannerImage(context))
-        assertNull("Loaded bitmap should be null after delete", ShortcutNotificationPreferences.loadBannerBitmap(context))
+        // Null bitmap falls back gracefully to Orbit brand color
+        val fallbackColor = ShortcutNotificationManager.extractAccentColorSync(null)
+        assertEquals(ShortcutNotificationManager.DEFAULT_ORBIT_COLOR, fallbackColor)
     }
 
     @Test
-    fun `buildNotification with banner image applies custom media cover RemoteViews`() {
-        val testBitmap = android.graphics.Bitmap.createBitmap(160, 90, android.graphics.Bitmap.Config.ARGB_8888)
-        ShortcutNotificationPreferences.saveBannerBitmap(context, testBitmap)
-        ShortcutNotificationPreferences.saveAll(
-            context = context,
-            enabled = true,
-            ongoing = true,
-            pkg = "com.google.android.youtube",
-            appName = "YouTube",
-            title = "YouTube",
-            body = "Tap to open",
-            iconType = ShortcutNotificationPreferences.ICON_TYPE_APP
+    fun `multiple shortcuts create group summary notification`() {
+        val summaryNotification = ShortcutNotificationManager.buildSummaryNotification(context, activeCount = 3)
+        assertNotNull(summaryNotification)
+        assertEquals(ShortcutNotificationManager.GROUP_KEY_SHORTCUTS, summaryNotification.group)
+        assertTrue(
+            "Summary notification must have FLAG_GROUP_SUMMARY",
+            (summaryNotification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
         )
-
-        val notification = ShortcutNotificationManager.buildNotification(context)
-        assertNotNull(notification)
-        assertNotNull(
-            "Custom contentView or bigContentView should be set when banner bitmap exists",
-            notification.contentView ?: notification.bigContentView
-        )
-
-        // Verify RemoteViews can actually inflate without InflateException or ActionException
-        val contentView = notification.contentView
-        assertNotNull("contentView must not be null", contentView)
-        val inflatedCollapsed = contentView!!.apply(context, null)
-        assertNotNull("Collapsed RemoteViews should inflate successfully", inflatedCollapsed)
-
-        val bigContentView = notification.bigContentView
-        assertNotNull("bigContentView must not be null", bigContentView)
-        val inflatedExpanded = bigContentView!!.apply(context, null)
-        assertNotNull("Expanded RemoteViews should inflate successfully", inflatedExpanded)
-
-        // Clean up
-        ShortcutNotificationPreferences.deleteBannerImage(context)
+        assertEquals(R.drawable.ic_orbit_small_monochrome, summaryNotification.smallIcon.resId)
+        assertEquals("Orbit Shortcuts", summaryNotification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
     }
 
     @Test
-    fun `multiple shortcuts management creates distinct items with unique notification IDs`() {
-        val shortcut1 = ShortcutNotificationPreferences.createNewShortcut(context, "com.google.android.youtube", "YouTube")
+    fun `multiple shortcuts can be individually configured, enabled, and deleted`() {
+        val shortcut1 = ShortcutNotificationPreferences.createNewShortcut(context, "com.spotify.music", "Spotify")
+        val shortcut2 = ShortcutNotificationPreferences.createNewShortcut(context, "com.netflix.mediaclient", "Netflix")
+
         ShortcutNotificationPreferences.saveShortcut(context, shortcut1)
-
-        val shortcut2 = ShortcutNotificationPreferences.createNewShortcut(context, "com.spotify.music", "Spotify")
         ShortcutNotificationPreferences.saveShortcut(context, shortcut2)
 
-        val allShortcuts = ShortcutNotificationPreferences.getAllShortcuts(context)
-        assertTrue(allShortcuts.size >= 2)
-        assertNotEquals(shortcut1.notificationId, shortcut2.notificationId)
-        assertNotEquals(shortcut1.id, shortcut2.id)
+        val all = ShortcutNotificationPreferences.getAllShortcuts(context)
+        assertEquals(2, all.size)
 
-        // Toggle individual shortcut
+        // Toggle enabled status
         ShortcutNotificationPreferences.setShortcutEnabled(context, shortcut1.id, false)
         val updated1 = ShortcutNotificationPreferences.getShortcutById(context, shortcut1.id)
         assertNotNull(updated1)
@@ -205,15 +167,21 @@ class ShortcutNotificationTest {
         assertNotNull(updated2)
         assertTrue(updated2!!.isEnabled)
 
-        // Build notifications for individual shortcut items
-        val notif1 = ShortcutNotificationManager.buildNotification(context, shortcut1)
-        val notif2 = ShortcutNotificationManager.buildNotification(context, shortcut2)
-        assertNotNull(notif1)
-        assertNotNull(notif2)
-
         // Delete shortcut
         val deleted = ShortcutNotificationPreferences.deleteShortcut(context, shortcut1.id)
         assertTrue(deleted)
         assertNull(ShortcutNotificationPreferences.getShortcutById(context, shortcut1.id))
+        assertEquals(1, ShortcutNotificationPreferences.getAllShortcuts(context).size)
+    }
+
+    @Test
+    fun `empty shortcuts without package are purged and rejected from persistence`() {
+        val ghost = ShortcutNotificationPreferences.createNewShortcut(context, "", "")
+        ShortcutNotificationPreferences.saveShortcut(context, ghost)
+        assertNull("Ghost shortcut without package should not be saved", ShortcutNotificationPreferences.getShortcutById(context, ghost.id))
+
+        val valid = ShortcutNotificationPreferences.createNewShortcut(context, "com.android.chrome", "Chrome")
+        ShortcutNotificationPreferences.saveShortcut(context, valid)
+        assertNotNull(ShortcutNotificationPreferences.getShortcutById(context, valid.id))
     }
 }

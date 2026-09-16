@@ -2,13 +2,7 @@ package com.example.shortcut
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,8 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,7 +40,6 @@ import com.example.AppInfo
 import com.example.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 enum class PreviewDisplayMode {
     COLLAPSED,
@@ -55,11 +48,14 @@ enum class PreviewDisplayMode {
 
 /**
  * Screen for managing multiple custom shortcut notifications and configuring individual shortcuts.
- * Supports:
- * 1. Multiple shortcuts list management with individual enable/disable toggle switches.
- * 2. System Notification live preview with Collapsed (64dp) and Expanded (180dp) states.
- * 3. Custom full-card background cropping and persistence.
- * 4. Direct save action with unique notification IDs for concurrent notifications.
+ * Features a standard, system-compliant notification architecture:
+ * 1. Target app's own launcher icon as setLargeIcon().
+ * 2. Accent color extraction via Palette (setColor + setColorized).
+ * 3. Orbit monochrome small icon.
+ * 4. Dynamic title/body content.
+ * 5. Action buttons (Open, Remove).
+ * 6. Configurable ongoing persistence.
+ * 7. System notification shade grouping.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,10 +66,6 @@ fun ShortcutNotificationScreen(
     isEmbedded: Boolean = false
 ) {
     val context = LocalContext.current
-    val signalOrange = Color(0xFFFF6B35)
-    val inkLight = Color(0xFFEEF0F6)
-    val inkDim = Color(0xFF5A6178)
-    val cardBg = Color(0xFF151D33)
     val containerBg = Color(0xFF0D1220)
 
     // Load all saved shortcuts from persistence
@@ -96,7 +88,6 @@ fun ShortcutNotificationScreen(
         }
     }
 
-    // Refresh shortcuts list helper
     fun refreshShortcuts() {
         allShortcuts = ShortcutNotificationPreferences.getAllShortcuts(context)
     }
@@ -113,9 +104,6 @@ fun ShortcutNotificationScreen(
         }
     ) {
         if (editingShortcut == null) {
-            // =========================================================================
-            // VIEW 1: All Shortcuts List Management
-            // =========================================================================
             ShortcutsListContent(
                 shortcuts = allShortcuts,
                 installedApps = installedApps,
@@ -142,16 +130,13 @@ fun ShortcutNotificationScreen(
                     } else {
                         context.getString(R.string.shortcut_notif_muted_status)
                     }
-                    Toast.makeText(context, "${shortcut.title.ifBlank { shortcut.appName }}: $message", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "${shortcut.displayTitle()}: $message", Toast.LENGTH_SHORT).show()
                 },
                 onDeleteShortcut = { shortcut ->
                     shortcutToDelete = shortcut
                 }
             )
         } else {
-            // =========================================================================
-            // VIEW 2: Single Shortcut Configurator & Live Preview
-            // =========================================================================
             ShortcutEditorContent(
                 initialItem = editingShortcut!!,
                 installedApps = installedApps,
@@ -183,51 +168,52 @@ fun ShortcutNotificationScreen(
             )
         }
 
-        // Delete Confirmation Dialog
+        // Confirmation dialog for deleting a shortcut
         if (shortcutToDelete != null) {
+            val item = shortcutToDelete!!
             AlertDialog(
                 onDismissRequest = { shortcutToDelete = null },
-                containerColor = cardBg,
                 title = {
                     Text(
                         text = stringResource(R.string.shortcut_notif_delete_confirm_title),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 },
                 text = {
                     Text(
-                        text = stringResource(R.string.shortcut_notif_delete_confirm_desc),
-                        color = inkLight
+                        text = "Are you sure you want to remove the shortcut for \"${item.displayTitle()}\"?",
+                        color = Color(0xFFEEF0F6)
                     )
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            val toDelete = shortcutToDelete!!
-                            ShortcutNotificationPreferences.deleteShortcut(context, toDelete.id)
+                            ShortcutNotificationPreferences.deleteShortcut(context, item.id)
                             ShortcutNotificationManager.syncServiceState(context)
                             refreshShortcuts()
                             shortcutToDelete = null
                             Toast.makeText(context, context.getString(R.string.shortcut_notif_deleted_toast), Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
                     ) {
-                        Text(stringResource(R.string.shortcut_notif_delete), color = Color.White)
+                        Text(stringResource(R.string.shortcut_notif_delete), color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { shortcutToDelete = null }) {
-                        Text(stringResource(android.R.string.cancel), color = inkDim)
+                        Text(stringResource(R.string.cancel), color = Color(0xFF5A6178))
                     }
-                }
+                },
+                containerColor = Color(0xFF151D33),
+                shape = RoundedCornerShape(18.dp)
             )
         }
     }
 }
 
 /**
- * List Management View: displays all configured shortcuts with individual enable/disable toggles.
+ * List overview of all created shortcut notifications.
  */
 @Composable
 private fun ShortcutsListContent(
@@ -242,16 +228,14 @@ private fun ShortcutsListContent(
     onToggleShortcut: (ShortcutItem, Boolean) -> Unit,
     onDeleteShortcut: (ShortcutItem) -> Unit
 ) {
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
-
     val signalOrange = Color(0xFFFF6B35)
     val inkLight = Color(0xFFEEF0F6)
     val inkDim = Color(0xFF5A6178)
     val cardBg = Color(0xFF151D33)
 
-    val activeCount = shortcuts.count { it.isEnabled && it.packageName.isNotBlank() }
-    val mutedCount = shortcuts.size - activeCount
+    val validShortcuts = shortcuts.filter { it.packageName.isNotBlank() }
+    val activeCount = validShortcuts.count { it.isEnabled }
 
     Column(
         modifier = Modifier
@@ -260,155 +244,173 @@ private fun ShortcutsListContent(
             .padding(horizontal = if (isEmbedded) 0.dp else 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        if (!isEmbedded) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Header Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!isEmbedded && onDismiss != null) {
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = inkLight
+            // Header Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = stringResource(R.string.shortcut_notif_track),
+                        color = signalOrange,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.shortcut_notif_manage_title),
+                        color = inkLight,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                if (onDismiss != null) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.clear),
+                            tint = inkLight
+                        )
+                    }
+                }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.shortcut_notif_track),
-                    color = signalOrange,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = stringResource(R.string.shortcut_notif_manage_title),
-                    color = inkLight,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Active count pill
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (activeCount > 0) signalOrange.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f))
-                    .border(
-                        1.dp,
-                        if (activeCount > 0) signalOrange.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f),
-                        RoundedCornerShape(10.dp)
-                    )
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    text = "$activeCount Active • $mutedCount Muted",
-                    color = if (activeCount > 0) signalOrange else inkDim,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Spacer(modifier = Modifier.height(18.dp))
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Notification permission warning if not granted
+        // Notification Permission Warning Card
         if (!isNotificationPermissionGranted) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onRequestNotificationPermission() },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1B12)),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = Brush.horizontalGradient(listOf(signalOrange.copy(alpha = 0.6f), signalOrange.copy(alpha = 0.2f)))
-                )
+                border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(signalOrange.copy(alpha = 0.6f), signalOrange.copy(alpha = 0.2f))))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        tint = signalOrange,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(signalOrange.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            tint = signalOrange,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Notification Permission Needed",
+                            text = "Notification Permission Required",
                             color = Color.White,
-                            fontSize = 13.5.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Enable permission to display persistent shortcuts in your notification shade.",
-                            color = inkDim,
-                            fontSize = 11.5.sp
+                            text = "Tap here to allow Orbit to post shortcuts into the notification shade.",
+                            color = Color(0xFFD4BBA5),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = onRequestNotificationPermission,
-                        colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = signalOrange
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
         }
 
-        // Add Shortcut Header Action Button
-        Button(
-            onClick = onAddNewShortcut,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+        // Overview Summary & Add Button Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.shortcut_notif_add_btn),
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "SHORTCUTS",
+                    color = inkDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (activeCount > 0) signalOrange.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "$activeCount active • ${validShortcuts.size} total",
+                        color = if (activeCount > 0) signalOrange else inkDim,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Button(
+                onClick = onAddNewShortcut,
+                colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.shortcut_notif_add_btn),
+                    color = Color.White,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        if (shortcuts.isEmpty()) {
-            // Empty state placeholder
+        if (validShortcuts.isEmpty()) {
+            // Empty State
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.02f))))
+                border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.04f))))
             ) {
                 Column(
                     modifier = Modifier
@@ -418,36 +420,36 @@ private fun ShortcutsListContent(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(60.dp)
                             .clip(CircleShape)
                             .background(signalOrange.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.NotificationsNone,
+                            imageVector = Icons.Default.AddCircleOutline,
                             contentDescription = null,
                             tint = signalOrange,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
                         text = stringResource(R.string.shortcut_notif_empty_title),
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = stringResource(R.string.shortcut_notif_empty_desc),
+                        text = "Pin any application to your Android notification shade with dynamic palette accent colors and quick action buttons.",
                         color = inkDim,
-                        fontSize = 12.5.sp,
-                        lineHeight = 17.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -455,11 +457,14 @@ private fun ShortcutsListContent(
                     Button(
                         onClick = onAddNewShortcut,
                         colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(0.8f)
                     ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(R.string.shortcut_notif_btn_create_first),
-                            color = Color.White,
+                            fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -471,18 +476,14 @@ private fun ShortcutsListContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                shortcuts.forEach { shortcut ->
+                validShortcuts.forEach { shortcut ->
                     val appInfo = remember(shortcut.packageName, installedApps) {
                         installedApps.find { it.packageName == shortcut.packageName }
-                    }
-                    val bannerBitmap = remember(shortcut.id, shortcut.bannerVersion) {
-                        ShortcutNotificationPreferences.loadBannerBitmap(context, shortcut)
                     }
 
                     ShortcutItemCard(
                         shortcut = shortcut,
                         appInfo = appInfo,
-                        bannerBitmap = bannerBitmap,
                         accentColor = signalOrange,
                         onToggle = { enabled -> onToggleShortcut(shortcut, enabled) },
                         onEdit = { onEditShortcut(shortcut) },
@@ -498,19 +499,16 @@ private fun ShortcutsListContent(
 
 /**
  * Individual card representation in the Shortcuts list.
- * Includes a live toggle switch, cover art preview, target app info, and edit/delete actions.
  */
 @Composable
 private fun ShortcutItemCard(
     shortcut: ShortcutItem,
     appInfo: AppInfo?,
-    bannerBitmap: Bitmap?,
     accentColor: Color,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val inkLight = Color(0xFFEEF0F6)
     val inkDim = Color(0xFF5A6178)
     val cardBg = Color(0xFF151D33)
 
@@ -529,59 +527,13 @@ private fun ShortcutItemCard(
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Optional banner preview strip across the top if cover art exists
-            if (bannerBitmap != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                ) {
-                    Image(
-                        bitmap = bannerBitmap.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Black.copy(alpha = 0.3f),
-                                        cardBg
-                                    )
-                                )
-                            )
-                    )
-
-                    // Cover Art Pill
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Black.copy(alpha = 0.7f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "COVER ART",
-                            color = accentColor,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            // Main Info Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // App Icon / Glyph
+                // App Icon Slot
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -612,7 +564,7 @@ private fun ShortcutItemCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = shortcut.title.ifBlank { shortcut.appName.ifBlank { "Untitled Shortcut" } },
+                            text = shortcut.displayTitle(),
                             color = if (shortcut.isEnabled) Color.White else inkDim,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
@@ -622,7 +574,7 @@ private fun ShortcutItemCard(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        // Unique Notification ID tag
+                        // Notification ID tag
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -641,7 +593,7 @@ private fun ShortcutItemCard(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = if (shortcut.body.isNotBlank()) shortcut.body else (if (shortcut.appName.isNotBlank()) shortcut.appName else "Tap to configure"),
+                        text = shortcut.displayBody(),
                         color = inkDim,
                         fontSize = 12.sp,
                         maxLines = 1,
@@ -649,9 +601,7 @@ private fun ShortcutItemCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
-
-                // Enable / Mute Toggle Switch
+                // Switch
                 Switch(
                     checked = shortcut.isEnabled,
                     onCheckedChange = onToggle,
@@ -664,39 +614,60 @@ private fun ShortcutItemCard(
                 )
             }
 
-            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-
-            // Action Buttons Row (Edit & Delete)
+            // Bottom action strip
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.02f))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (shortcut.isOngoing) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
+                                .background(accentColor.copy(alpha = 0.15f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (shortcut.isEnabled) accentColor else inkDim,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "Pinned",
-                                color = if (shortcut.isEnabled) accentColor else inkDim,
-                                fontSize = 10.sp,
+                                text = "ONGOING",
+                                color = accentColor,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "SWIPEABLE",
+                                color = inkDim,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "PALETTE ACCENT",
+                            color = inkDim,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
 
@@ -759,7 +730,6 @@ private fun ShortcutEditorContent(
     val inkDim = Color(0xFF5A6178)
     val cardBg = Color(0xFF151D33)
 
-    // Form fields initialized with shortcut item
     var isEnabled by remember { mutableStateOf(initialItem.isEnabled) }
     var isOngoing by remember { mutableStateOf(initialItem.isOngoing) }
     var targetPackage by remember { mutableStateOf(initialItem.packageName) }
@@ -768,34 +738,13 @@ private fun ShortcutEditorContent(
     var customBody by remember { mutableStateOf(initialItem.body) }
     var selectedIconType by remember { mutableStateOf(initialItem.iconType) }
 
-    // Live preview display mode: Collapsed (64dp standard) vs Expanded (180dp pull-down)
-    var previewDisplayMode by remember { mutableStateOf(PreviewDisplayMode.COLLAPSED) }
-
-    // Banner bitmap state
-    var bannerVersion by remember { mutableIntStateOf(initialItem.bannerVersion) }
-    var bannerFileName by remember { mutableStateOf(initialItem.bannerFileName) }
-    var bannerBitmap by remember(bannerVersion) {
-        mutableStateOf(ShortcutNotificationPreferences.loadBannerBitmap(context, initialItem.copy(bannerFileName = bannerFileName)))
-    }
-
-    var pendingCropUri by remember { mutableStateOf<Uri?>(null) }
-    var showCropDialog by remember { mutableStateOf(false) }
+    var previewDisplayMode by remember { mutableStateOf(PreviewDisplayMode.EXPANDED) }
     var showAppPicker by remember { mutableStateOf(false) }
-
-    val bannerPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            pendingCropUri = uri
-            showCropDialog = true
-        }
-    }
 
     val currentAppInfo = remember(targetPackage, installedApps) {
         installedApps.find { it.packageName == targetPackage }
     }
 
-    // Build current shortcut snapshot
     fun getCurrentSnapshot(): ShortcutItem {
         return initialItem.copy(
             isEnabled = isEnabled,
@@ -804,10 +753,17 @@ private fun ShortcutEditorContent(
             appName = targetAppName,
             title = customTitle,
             body = customBody,
-            iconType = selectedIconType,
-            bannerFileName = bannerFileName,
-            bannerVersion = bannerVersion
+            iconType = selectedIconType
         )
+    }
+
+    val attemptSave = {
+        if (targetPackage.isBlank()) {
+            Toast.makeText(context, "Please select an app for this shortcut", Toast.LENGTH_SHORT).show()
+            showAppPicker = true
+        } else {
+            onSave(getCurrentSnapshot())
+        }
     }
 
     Column(
@@ -819,7 +775,7 @@ private fun ShortcutEditorContent(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Top Navigation & Title Bar
+        // Navigation & Header Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -860,7 +816,7 @@ private fun ShortcutEditorContent(
 
             // Quick Top Save Button
             Button(
-                onClick = { onSave(getCurrentSnapshot()) },
+                onClick = attemptSave,
                 colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
@@ -936,7 +892,7 @@ private fun ShortcutEditorContent(
                 HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Ongoing / Non-swipeable Row
+                // Ongoing Switch Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -959,14 +915,32 @@ private fun ShortcutEditorContent(
                     Spacer(modifier = Modifier.width(14.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.shortcut_notif_ongoing_toggle),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (isOngoing) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(signalOrange.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.shortcut_notif_ongoing_chip),
+                                        color = signalOrange,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                         Text(
-                            text = stringResource(R.string.shortcut_notif_ongoing_toggle),
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = stringResource(R.string.shortcut_notif_ongoing_desc),
+                            text = if (isOngoing) "Pinned persistently in status bar (recommended)" else "Swipeable and dismissable from notification shade",
                             color = inkDim,
                             fontSize = 12.sp
                         )
@@ -974,8 +948,7 @@ private fun ShortcutEditorContent(
 
                     Switch(
                         checked = isOngoing,
-                        enabled = isEnabled,
-                        onCheckedChange = { checked -> isOngoing = checked },
+                        onCheckedChange = { isOngoing = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = signalOrange,
@@ -989,24 +962,37 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // =========================================================================
-        // Section 2: Live Preview Card (System Notification Shade Replica)
-        // With Segmented Toggle for Collapsed (64dp) and Expanded (180dp) states!
-        // =========================================================================
+        // Section 2: Live Notification Preview Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = stringResource(R.string.shortcut_notif_live_preview_header),
-                color = signalOrange,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.shortcut_notif_live_preview_header),
+                    color = signalOrange,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "PALETTE COLORIZED",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
-            // Segmented mode switcher: Collapsed vs Expanded
+            // Mode Selector: Collapsed vs Expanded
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -1021,7 +1007,7 @@ private fun ShortcutEditorContent(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.shortcut_notif_preview_mode_collapsed),
+                        text = "Collapsed",
                         color = if (previewDisplayMode == PreviewDisplayMode.COLLAPSED) Color.White else inkDim,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
@@ -1036,7 +1022,7 @@ private fun ShortcutEditorContent(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.shortcut_notif_preview_mode_expanded),
+                        text = "Expanded",
                         color = if (previewDisplayMode == PreviewDisplayMode.EXPANDED) Color.White else inkDim,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
@@ -1047,14 +1033,14 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Standard System Notification Preview Card
         NotificationLivePreviewCard(
             targetAppName = targetAppName,
-            title = if (customTitle.isNotBlank()) customTitle else (if (targetAppName.isNotBlank()) targetAppName else "App Shortcut"),
-            body = customBody,
+            title = if (customTitle.isNotBlank()) customTitle else (if (targetAppName.isNotBlank()) "Open $targetAppName" else "Open App"),
+            body = if (customBody.isNotBlank()) customBody else "Tap to launch",
             iconType = selectedIconType,
             isOngoing = isOngoing,
             currentAppInfo = currentAppInfo,
-            bannerBitmap = bannerBitmap,
             accentColor = signalOrange,
             displayMode = previewDisplayMode
         )
@@ -1087,22 +1073,20 @@ private fun ShortcutEditorContent(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (currentAppInfo?.iconBitmap != null) {
-                    Image(
-                        bitmap = currentAppInfo.iconBitmap,
-                        contentDescription = targetAppName,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(signalOrange.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(signalOrange.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (currentAppInfo?.iconBitmap != null) {
+                        Image(
+                            bitmap = currentAppInfo.iconBitmap,
+                            contentDescription = currentAppInfo.label,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    } else {
                         Icon(
                             imageVector = Icons.Default.Apps,
                             contentDescription = null,
@@ -1118,11 +1102,10 @@ private fun ShortcutEditorContent(
                     Text(
                         text = if (targetAppName.isNotBlank()) targetAppName else stringResource(R.string.shortcut_notif_no_app_selected),
                         color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (targetPackage.isNotBlank()) targetPackage else stringResource(R.string.shortcut_notif_tap_to_choose_app),
                         color = inkDim,
@@ -1132,18 +1115,14 @@ private fun ShortcutEditorContent(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(signalOrange.copy(alpha = 0.15f))
-                        .border(1.dp, signalOrange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                Button(
+                    onClick = { showAppPicker = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = stringResource(R.string.shortcut_notif_choose_app_btn),
-                        color = signalOrange,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -1153,188 +1132,7 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Section 4: Notification Background Image (Full Cover)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.shortcut_notif_banner_header),
-                color = signalOrange,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp
-            )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(signalOrange.copy(alpha = 0.15f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.shortcut_notif_banner_badge),
-                    color = signalOrange,
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.04f))))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = stringResource(R.string.shortcut_notif_banner_desc),
-                    color = inkDim,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                if (bannerBitmap != null) {
-                    // Current cropped background preview
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black)
-                            .border(1.dp, signalOrange.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                    ) {
-                        Image(
-                            bitmap = bannerBitmap!!.asImageBitmap(),
-                            contentDescription = "Active Notification Background",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Overlay label chip
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(10.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "Full Cover Background Applied",
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = { bannerPickerLauncher.launch("image/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.shortcut_notif_replace_banner),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                ShortcutNotificationPreferences.deleteBannerBitmapForShortcut(context, getCurrentSnapshot())
-                                bannerFileName = null
-                                bannerVersion++
-                                bannerBitmap = null
-                                Toast.makeText(context, "Background removed", Toast.LENGTH_SHORT).show()
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.35f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.shortcut_notif_remove_banner),
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                } else {
-                    // Empty background upload placeholder
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.03f))
-                            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(12.dp))
-                            .clickable { bannerPickerLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(signalOrange.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Crop,
-                                    contentDescription = null,
-                                    tint = signalOrange,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = stringResource(R.string.shortcut_notif_upload_banner),
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = stringResource(R.string.shortcut_notif_banner_hint),
-                                color = inkDim,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Section 5: Custom Text Input Fields
+        // Section 4: Text Customization
         Text(
             text = stringResource(R.string.shortcut_notif_text_header),
             color = signalOrange,
@@ -1366,7 +1164,7 @@ private fun ShortcutEditorContent(
                     onValueChange = { customTitle = it },
                     placeholder = {
                         Text(
-                            text = if (targetAppName.isNotBlank()) targetAppName else stringResource(R.string.shortcut_notif_title_placeholder),
+                            text = if (targetAppName.isNotBlank()) "Open $targetAppName" else "Open App",
                             color = inkDim
                         )
                     },
@@ -1420,7 +1218,7 @@ private fun ShortcutEditorContent(
                     onValueChange = { customBody = it },
                     placeholder = {
                         Text(
-                            text = stringResource(R.string.shortcut_notif_body_optional_hint),
+                            text = "Tap to launch",
                             color = inkDim
                         )
                     },
@@ -1450,35 +1248,12 @@ private fun ShortcutEditorContent(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Quick Chips: "App Name & Icon Only" vs presets
+                // Quick Chips
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (customBody.isBlank()) signalOrange.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.04f))
-                            .border(
-                                1.dp,
-                                if (customBody.isBlank()) signalOrange else Color.White.copy(alpha = 0.08f),
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable { customBody = "" }
-                            .padding(horizontal = 9.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.shortcut_notif_app_name_only),
-                            color = if (customBody.isBlank()) signalOrange else inkLight,
-                            fontSize = 11.sp,
-                            fontWeight = if (customBody.isBlank()) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-
-                    listOf(
-                        stringResource(R.string.shortcut_notif_chip_tap_open),
-                        stringResource(R.string.shortcut_notif_chip_quick_launch)
-                    ).forEach { preset ->
+                    listOf("Tap to launch", "Quick launch", "Open now").forEach { preset ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -1489,7 +1264,7 @@ private fun ShortcutEditorContent(
                                     RoundedCornerShape(8.dp)
                                 )
                                 .clickable { customBody = preset }
-                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = preset,
@@ -1505,7 +1280,7 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Section 6: Icon Selection
+        // Section 5: Icon Selection
         Text(
             text = stringResource(R.string.shortcut_notif_icon_header),
             color = signalOrange,
@@ -1583,9 +1358,9 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Section 7: Primary Save Button
+        // Section 6: Primary Save Button
         Button(
-            onClick = { onSave(getCurrentSnapshot()) },
+            onClick = attemptSave,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
@@ -1611,7 +1386,7 @@ private fun ShortcutEditorContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Delete Shortcut button (if not the only shortcut or if created)
+        // Delete Shortcut button
         OutlinedButton(
             onClick = { onDelete(initialItem) },
             modifier = Modifier
@@ -1637,7 +1412,7 @@ private fun ShortcutEditorContent(
         Spacer(modifier = Modifier.height(40.dp))
     }
 
-    // App Picker Bottom Sheet / Dialog
+    // App Picker Dialog
     if (showAppPicker) {
         AppPickerDialog(
             apps = installedApps,
@@ -1645,38 +1420,12 @@ private fun ShortcutEditorContent(
             onDismiss = { showAppPicker = false },
             onSelectApp = { app ->
                 targetPackage = app.packageName
-                val previousAppName = targetAppName
                 targetAppName = app.label
-                if (customTitle.isBlank() || customTitle == previousAppName || customTitle == "Quick Launch" || customTitle == "App Shortcut") {
-                    customTitle = app.label
+                if (customTitle.isBlank() || customTitle.startsWith("Open ")) {
+                    customTitle = "Open ${app.label}"
                 }
                 showAppPicker = false
                 Toast.makeText(context, "${app.label} selected", Toast.LENGTH_SHORT).show()
-            }
-        )
-    }
-
-    // Image Cropper Tool Dialog
-    if (showCropDialog && pendingCropUri != null) {
-        NotificationImageCropperDialog(
-            imageUri = pendingCropUri!!,
-            accentColor = signalOrange,
-            onDismiss = {
-                showCropDialog = false
-                pendingCropUri = null
-            },
-            onCropped = { croppedBitmap ->
-                val savedName = ShortcutNotificationPreferences.saveBannerBitmapForShortcut(context, initialItem.id, croppedBitmap)
-                if (savedName != null) {
-                    bannerFileName = savedName
-                    bannerVersion++
-                    bannerBitmap = croppedBitmap
-                    Toast.makeText(context, "Cover art applied!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Failed to save cropped image", Toast.LENGTH_SHORT).show()
-                }
-                showCropDialog = false
-                pendingCropUri = null
             }
         )
     }
@@ -1684,9 +1433,10 @@ private fun ShortcutEditorContent(
 
 /**
  * High-fidelity representation of the Android System Notification Shade.
- * Supports both:
- * - COLLAPSED: 64dp compact card matching notification_shortcut_collapsed.xml without clipping.
- * - EXPANDED: 180dp expanded card matching notification_shortcut_expanded.xml.
+ * - Standard Android notification styling with Large Icon on right.
+ * - Dynamic Palette accent color extracted from the target app icon.
+ * - Monochrome Orbit small icon in the notification header.
+ * - Action buttons ("OPEN" and "REMOVE").
  */
 @Composable
 fun NotificationLivePreviewCard(
@@ -1696,369 +1446,240 @@ fun NotificationLivePreviewCard(
     iconType: String,
     isOngoing: Boolean,
     currentAppInfo: AppInfo?,
-    bannerBitmap: Bitmap? = null,
     accentColor: Color,
-    displayMode: PreviewDisplayMode = PreviewDisplayMode.COLLAPSED
+    displayMode: PreviewDisplayMode = PreviewDisplayMode.EXPANDED
 ) {
-    val shadeBg = Color(0xFF1B202E)
-    val collapsedBg = Color(0xFF151D33)
+    val cardBg = Color(0xFF1B202E)
     val textColor = Color(0xFFF1F3F9)
     val textDim = Color(0xFF949CB2)
+    val displayBody = if (body.isNotBlank()) body else "Tap to launch"
 
-    val textShadow = if (bannerBitmap != null) {
-        androidx.compose.ui.graphics.Shadow(
-            color = Color.Black.copy(alpha = 0.95f),
-            offset = androidx.compose.ui.geometry.Offset(0f, 2f),
-            blurRadius = 6f
-        )
-    } else {
-        androidx.compose.ui.graphics.Shadow.None
+    // Asynchronously extract dominant/vibrant accent color from app icon using Palette
+    val dynamicPaletteColor by produceState<Color>(initialValue = accentColor, key1 = currentAppInfo?.packageName) {
+        if (currentAppInfo?.iconBitmap != null) {
+            val extractedRgb = withContext(Dispatchers.Default) {
+                ShortcutNotificationManager.extractAccentColorSync(
+                    currentAppInfo.iconBitmap.asAndroidBitmap(),
+                    cacheKey = currentAppInfo.packageName,
+                    defaultColor = ShortcutNotificationManager.DEFAULT_ORBIT_COLOR
+                )
+            }
+            value = Color(extractedRgb)
+        } else {
+            value = accentColor
+        }
     }
 
-    if (displayMode == PreviewDisplayMode.COLLAPSED) {
-        // =========================================================================
-        // COLLAPSED LIVE PREVIEW (Exactly matches notification_shortcut_collapsed.xml, 64dp)
-        // =========================================================================
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(68.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = if (bannerBitmap != null) Color.Black else collapsedBg),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (bannerBitmap != null) 0.22f else 0.08f),
-                        Color.White.copy(alpha = if (bannerBitmap != null) 0.12f else 0.04f)
-                    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = Brush.horizontalGradient(
+                listOf(
+                    dynamicPaletteColor.copy(alpha = 0.35f),
+                    Color.White.copy(alpha = 0.06f)
                 )
             )
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Background cover image
-                if (bannerBitmap != null) {
-                    Image(
-                        bitmap = bannerBitmap.asImageBitmap(),
-                        contentDescription = "Notification Background Artwork",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Dark Contrast Scrim
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xB305070D),
-                                        Color(0x8A090D18),
-                                        Color(0xF205070D)
-                                    )
-                                )
-                            )
+            // 1. Android System Notification Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Monochrome small icon container
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(dynamicPaletteColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_orbit_small_monochrome),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
                     )
                 }
 
-                // Main Content Row: Vertically centered in the 68dp card
-                Row(
+                Spacer(modifier = Modifier.width(7.dp))
+
+                Text(
+                    text = "Orbit",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = " • now",
+                    color = textDim,
+                    fontSize = 12.sp
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                if (isOngoing) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Persistent",
+                        tint = dynamicPaletteColor,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Icon(
+                    imageVector = if (displayMode == PreviewDisplayMode.EXPANDED) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = textDim,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 2. Content Row: Title, Text on Left | Target App Large Icon on Right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        color = textColor,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = displayBody,
+                        color = textDim,
+                        fontSize = 13.sp,
+                        maxLines = if (displayMode == PreviewDisplayMode.EXPANDED) 3 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Target App Large Icon
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(dynamicPaletteColor.copy(alpha = 0.15f))
+                        .border(1.dp, dynamicPaletteColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // App Icon (40dp x 40dp)
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (bannerBitmap != null) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = if (bannerBitmap != null) 0.25f else 0.08f), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        when (iconType) {
-                            ShortcutNotificationPreferences.ICON_TYPE_APP -> {
-                                if (currentAppInfo?.iconBitmap != null) {
-                                    Image(
-                                        bitmap = currentAppInfo.iconBitmap,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(30.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Apps,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                            ShortcutNotificationPreferences.ICON_TYPE_ORBIT -> {
+                    when (iconType) {
+                        ShortcutNotificationPreferences.ICON_TYPE_APP -> {
+                            if (currentAppInfo?.iconBitmap != null) {
+                                Image(
+                                    bitmap = currentAppInfo.iconBitmap,
+                                    contentDescription = currentAppInfo.label,
+                                    modifier = Modifier.size(34.dp)
+                                )
+                            } else {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_bubble_atom_core),
+                                    imageVector = Icons.Default.Apps,
                                     contentDescription = null,
-                                    tint = accentColor,
+                                    tint = dynamicPaletteColor,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
-                            ShortcutNotificationPreferences.ICON_TYPE_MINIMAL -> {
-                                Icon(
-                                    imageVector = Icons.Default.Launch,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Title & Body text
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            color = textColor,
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
-                        )
-                        if (body.isNotBlank()) {
-                            Text(
-                                text = body,
-                                color = if (bannerBitmap != null) Color(0xFFE8EDF5) else textDim,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
+                        ShortcutNotificationPreferences.ICON_TYPE_ORBIT -> {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_bubble_atom_core),
+                                contentDescription = null,
+                                tint = dynamicPaletteColor,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Right indicators: COVER ART badge + Chevron
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (bannerBitmap != null) {
-                            Text(
-                                text = "COVER ART",
-                                color = accentColor,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp,
-                                style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
+                        ShortcutNotificationPreferences.ICON_TYPE_MINIMAL -> {
+                            Icon(
+                                imageVector = Icons.Default.Launch,
+                                contentDescription = null,
+                                tint = dynamicPaletteColor,
+                                modifier = Modifier.size(22.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
                         }
-
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Default.Apps,
+                                contentDescription = null,
+                                tint = dynamicPaletteColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
-    } else {
-        // =========================================================================
-        // EXPANDED LIVE PREVIEW (Exactly matches notification_shortcut_expanded.xml, 180dp)
-        // =========================================================================
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = if (bannerBitmap != null) Color.Black else shadeBg),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (bannerBitmap != null) 0.22f else 0.08f),
-                        Color.White.copy(alpha = if (bannerBitmap != null) 0.12f else 0.04f)
-                    )
-                )
-            )
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Background cover image
-                if (bannerBitmap != null) {
-                    Image(
-                        bitmap = bannerBitmap.asImageBitmap(),
-                        contentDescription = "Notification Background Artwork",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
 
-                    // Dark contrast gradient scrim
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Black.copy(alpha = 0.5f),
-                                        Color.Black.copy(alpha = 0.85f)
-                                    )
-                                )
-                            )
-                    )
-                }
+            // 3. Expanded View Action Buttons
+            if (displayMode == PreviewDisplayMode.EXPANDED) {
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Top notification header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Action 1: Open
+                    Button(
+                        onClick = { },
+                        colors = ButtonDefaults.buttonColors(containerColor = dynamicPaletteColor.copy(alpha = 0.25f)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_bubble_atom_core),
+                            imageVector = Icons.Default.Launch,
                             contentDescription = null,
-                            tint = accentColor,
+                            tint = dynamicPaletteColor,
                             modifier = Modifier.size(14.dp)
                         )
-
                         Spacer(modifier = Modifier.width(6.dp))
-
                         Text(
-                            text = "${stringResource(R.string.app_name)} • ${stringResource(R.string.shortcut_notif_shade_label)} • now",
-                            color = if (bannerBitmap != null) Color.White.copy(alpha = 0.85f) else textDim,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
+                            text = "OPEN",
+                            color = dynamicPaletteColor,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold
                         )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        if (bannerBitmap != null) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(accentColor.copy(alpha = 0.22f))
-                                    .border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Cover Art",
-                                    color = accentColor,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-
-                        if (isOngoing) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.White.copy(alpha = if (bannerBitmap != null) 0.15f else 0.05f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Pinned",
-                                    color = accentColor,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                     }
 
-                    // Bottom Content Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Action 2: Remove
+                    OutlinedButton(
+                        onClick = { },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = textDim),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (bannerBitmap != null) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.05f))
-                                .border(1.dp, Color.White.copy(alpha = if (bannerBitmap != null) 0.25f else 0.08f), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            when (iconType) {
-                                ShortcutNotificationPreferences.ICON_TYPE_APP -> {
-                                    if (currentAppInfo?.iconBitmap != null) {
-                                        Image(
-                                            bitmap = currentAppInfo.iconBitmap,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(34.dp)
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.Apps,
-                                            contentDescription = null,
-                                            tint = accentColor,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                                ShortcutNotificationPreferences.ICON_TYPE_ORBIT -> {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_bubble_atom_core),
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                ShortcutNotificationPreferences.ICON_TYPE_MINIMAL -> {
-                                    Icon(
-                                        imageVector = Icons.Default.Launch,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = title,
-                                color = textColor,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
-                            )
-                            if (body.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = body,
-                                    color = if (bannerBitmap != null) Color.White.copy(alpha = 0.9f) else textDim,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = androidx.compose.ui.text.TextStyle(shadow = textShadow)
-                                )
-                            }
-                        }
-
                         Icon(
-                            imageVector = Icons.Default.ChevronRight,
+                            imageVector = Icons.Default.DeleteOutline,
                             contentDescription = null,
-                            tint = if (bannerBitmap != null) Color.White.copy(alpha = 0.85f) else textDim.copy(alpha = 0.6f),
-                            modifier = Modifier.size(20.dp)
+                            tint = textDim,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "REMOVE",
+                            color = textDim,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }

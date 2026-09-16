@@ -12,25 +12,37 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.util.Log
-import android.view.View
-import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.palette.graphics.Palette
 import com.example.MainActivity
 import com.example.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Controller for building, posting, and synchronizing custom persistent shortcut notifications.
+ * Controller for building, posting, and synchronizing system-compliant Orbit shortcut notifications.
  */
 object ShortcutNotificationManager {
     private const val TAG = "ShortcutNotifMgr"
     const val CHANNEL_ID = "orbit_shortcut_notification_channel"
     const val NOTIFICATION_ID = 2002
+    const val SUMMARY_NOTIFICATION_ID = 2000
+    const val GROUP_KEY_SHORTCUTS = "com.example.orbit.SHORTCUTS"
+
+    // Default Orbit brand accent color (Vibrant Coral / Neon-Orange)
+    const val DEFAULT_ORBIT_COLOR = 0xFFFF6B35.toInt()
 
     const val ACTION_START_OR_UPDATE = "com.example.shortcut.ACTION_START_OR_UPDATE"
     const val ACTION_STOP = "com.example.shortcut.ACTION_STOP"
     const val EXTRA_OPEN_SHORTCUT_CONFIG = "extra_open_shortcut_config"
     const val EXTRA_SHORTCUT_APP_NOT_FOUND = "extra_shortcut_app_not_found"
+
+    // In-memory color cache keyed by target package to avoid redundant palette extraction
+    private val colorCache = ConcurrentHashMap<String, Int>()
 
     fun init(context: Context) {
         createNotificationChannel(context)
@@ -57,14 +69,114 @@ object ShortcutNotificationManager {
     }
 
     /**
-     * Builds the shortcut notification for a specific ShortcutItem.
+     * Asynchronously extracts the vibrant or dominant accent color from a bitmap using androidx.palette.
+     * Guaranteed to execute off the main thread on Dispatchers.Default.
      */
-    fun buildNotification(context: Context, item: ShortcutItem): Notification {
+    suspend fun extractAccentColor(
+        bitmap: Bitmap?,
+        cacheKey: String? = null,
+        defaultColor: Int = DEFAULT_ORBIT_COLOR
+    ): Int = withContext(Dispatchers.Default) {
+        if (cacheKey != null && colorCache.containsKey(cacheKey)) {
+            return@withContext colorCache[cacheKey]!!
+        }
+        if (bitmap == null || bitmap.isRecycled) return@withContext defaultColor
+        val color = try {
+            val palette = Palette.from(bitmap).generate()
+            palette.vibrantSwatch?.rgb
+                ?: palette.dominantSwatch?.rgb
+                ?: palette.lightVibrantSwatch?.rgb
+                ?: palette.darkVibrantSwatch?.rgb
+                ?: palette.mutedSwatch?.rgb
+                ?: palette.getDominantColor(defaultColor)
+        } catch (e: Exception) {
+            Log.w(TAG, "Palette generation failed for $cacheKey", e)
+            defaultColor
+        }
+        if (cacheKey != null && cacheKey.isNotBlank()) {
+            colorCache[cacheKey] = color
+        }
+        color
+    }
+
+    /**
+     * Synchronous fallback for color extraction (checks cache or runs local palette generation).
+     */
+    fun extractAccentColorSync(
+        bitmap: Bitmap?,
+        cacheKey: String? = null,
+        defaultColor: Int = DEFAULT_ORBIT_COLOR
+    ): Int {
+        if (cacheKey != null && colorCache.containsKey(cacheKey)) {
+            return colorCache[cacheKey]!!
+        }
+        if (bitmap == null || bitmap.isRecycled) return defaultColor
+        val color = try {
+            val palette = Palette.from(bitmap).generate()
+            palette.vibrantSwatch?.rgb
+                ?: palette.dominantSwatch?.rgb
+                ?: palette.lightVibrantSwatch?.rgb
+                ?: palette.darkVibrantSwatch?.rgb
+                ?: palette.mutedSwatch?.rgb
+                ?: palette.getDominantColor(defaultColor)
+        } catch (e: Exception) {
+            defaultColor
+        }
+        if (cacheKey != null && cacheKey.isNotBlank()) {
+            colorCache[cacheKey] = color
+        }
+        return color
+    }
+
+    /**
+     * Resolves the large icon bitmap based on the user's icon selection.
+     */
+    fun resolveLargeIcon(context: Context, iconType: String, targetPackage: String): Bitmap? {
+        return try {
+            when (iconType) {
+                ShortcutNotificationPreferences.ICON_TYPE_APP -> {
+                    if (targetPackage.isNotBlank()) {
+                        val drawable = context.packageManager.getApplicationIcon(targetPackage)
+                        drawableToBitmap(drawable, 128)
+                    } else {
+                        getOrbitIconBitmap(context)
+                    }
+                }
+                ShortcutNotificationPreferences.ICON_TYPE_ORBIT -> {
+                    getOrbitIconBitmap(context)
+                }
+                ShortcutNotificationPreferences.ICON_TYPE_MINIMAL -> {
+                    getMinimalGlyphBitmap(context)
+                }
+                else -> getOrbitIconBitmap(context)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to resolve large icon for $iconType", e)
+            getOrbitIconBitmap(context)
+        }
+    }
+
+    /**
+     * Builds a standard, system-compliant notification for an individual ShortcutItem.
+     *
+     * 1. Large Icon: Target app's own launcher icon.
+     * 2. Accent Color: Extracted dominant/vibrant color from the target app icon via Palette (setColor + setColorized).
+     * 3. Small Icon: Monochrome transparent Orbit silhouette (R.drawable.ic_orbit_small_monochrome).
+     * 4. Content: "Open [App Name]" and "Tap to launch" dynamically generated per shortcut.
+     * 5. Action Buttons: "Open" (launches app) and "Remove" (removes/mutes shortcut).
+     * 6. Configurable isOngoing: Allows persistent pinned or swipeable dismissable mode.
+     * 7. Grouping: Groups notifications with GROUP_KEY_SHORTCUTS.
+     */
+    fun buildNotification(
+        context: Context,
+        item: ShortcutItem,
+        overrideAccentColor: Int? = null
+    ): Notification {
         createNotificationChannel(context)
 
         val targetPackage = item.packageName
         val title = item.displayTitle()
-        val body = item.body
+        val body = item.displayBody()
         val iconType = item.iconType
         val isOngoing = item.isOngoing
 
@@ -103,92 +215,38 @@ object ShortcutNotificationManager {
         }
 
         val largeIconBitmap = resolveLargeIcon(context, iconType, targetPackage)
-        val bannerBitmap = ShortcutNotificationPreferences.loadBannerBitmap(context, item)
+
+        // Palette accent color extraction
+        val accentColor = overrideAccentColor
+            ?: extractAccentColorSync(largeIconBitmap, cacheKey = targetPackage)
+
+        val deletePendingIntent = NotificationDismissReceiver.createShortcutDeleteIntent(context, item)
+        val removePendingIntent = NotificationDismissReceiver.createRemoveShortcutIntent(context, item)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
-            .setSmallIcon(R.drawable.ic_bubble_atom_core)
+            .setContentText(body)
+            .setSmallIcon(R.drawable.ic_orbit_small_monochrome)
             .setContentIntent(pendingIntent)
+            .setDeleteIntent(deletePendingIntent)
             .setOngoing(isOngoing)
             .setAutoCancel(!isOngoing)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-
-        if (body.isNotBlank()) {
-            builder.setContentText(body)
-        }
+            .setColor(accentColor)
+            .setColorized(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setGroup(GROUP_KEY_SHORTCUTS)
+            .setShowWhen(true)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
 
         if (largeIconBitmap != null) {
             builder.setLargeIcon(largeIconBitmap)
         }
 
-        try {
-            // Collapsed View - full card background cover matching Live Preview
-            val collapsedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_collapsed)
-            collapsedViews.setOnClickPendingIntent(R.id.notif_collapsed_root, pendingIntent)
+        // Action 1: Open app
+        builder.addAction(0, "Open", pendingIntent)
 
-            if (bannerBitmap != null) {
-                collapsedViews.setViewVisibility(R.id.notif_bg_image, View.VISIBLE)
-                collapsedViews.setImageViewBitmap(R.id.notif_bg_image, bannerBitmap)
-                collapsedViews.setViewVisibility(R.id.notif_scrim, View.VISIBLE)
-                collapsedViews.setViewVisibility(R.id.notif_header_badge, View.VISIBLE)
-            } else {
-                collapsedViews.setViewVisibility(R.id.notif_bg_image, View.GONE)
-                collapsedViews.setViewVisibility(R.id.notif_scrim, View.GONE)
-                collapsedViews.setViewVisibility(R.id.notif_header_badge, View.GONE)
-            }
-
-            if (largeIconBitmap != null) {
-                collapsedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
-            }
-            collapsedViews.setTextViewText(R.id.notif_title, title)
-            if (body.isNotBlank()) {
-                collapsedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
-                collapsedViews.setTextViewText(R.id.notif_body, body)
-            } else {
-                collapsedViews.setViewVisibility(R.id.notif_body, View.GONE)
-            }
-
-            // Expanded View - expanded media cover matching Live Preview
-            val expandedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_expanded)
-            expandedViews.setOnClickPendingIntent(R.id.notif_expanded_root, pendingIntent)
-
-            if (bannerBitmap != null) {
-                expandedViews.setViewVisibility(R.id.notif_bg_image, View.VISIBLE)
-                expandedViews.setImageViewBitmap(R.id.notif_bg_image, bannerBitmap)
-                expandedViews.setViewVisibility(R.id.notif_scrim, View.VISIBLE)
-                expandedViews.setViewVisibility(R.id.notif_expanded_badge, View.VISIBLE)
-            } else {
-                expandedViews.setViewVisibility(R.id.notif_bg_image, View.GONE)
-                expandedViews.setViewVisibility(R.id.notif_scrim, View.GONE)
-                expandedViews.setViewVisibility(R.id.notif_expanded_badge, View.GONE)
-            }
-
-            if (largeIconBitmap != null) {
-                expandedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
-            }
-            expandedViews.setTextViewText(R.id.notif_title, title)
-            if (body.isNotBlank()) {
-                expandedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
-                expandedViews.setTextViewText(R.id.notif_body, body)
-            } else {
-                expandedViews.setViewVisibility(R.id.notif_body, View.GONE)
-            }
-
-            builder.setCustomContentView(collapsedViews)
-            builder.setCustomBigContentView(expandedViews)
-            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to apply custom RemoteViews", e)
-            if (bannerBitmap != null) {
-                val bigPictureStyle = NotificationCompat.BigPictureStyle()
-                    .bigPicture(bannerBitmap)
-                if (body.isNotBlank()) {
-                    bigPictureStyle.setSummaryText(body)
-                }
-                builder.setStyle(bigPictureStyle)
-            }
-        }
+        // Action 2: Remove shortcut
+        builder.addAction(0, "Remove", removePendingIntent)
 
         val notification = builder.build()
         if (isOngoing) {
@@ -210,31 +268,32 @@ object ShortcutNotificationManager {
     }
 
     /**
-     * Resolves the large icon bitmap based on the user's icon selection.
+     * Builds the group summary notification when multiple shortcuts are active.
      */
-    private fun resolveLargeIcon(context: Context, iconType: String, targetPackage: String): Bitmap? {
-        return try {
-            when (iconType) {
-                ShortcutNotificationPreferences.ICON_TYPE_APP -> {
-                    if (targetPackage.isNotBlank()) {
-                        val drawable = context.packageManager.getApplicationIcon(targetPackage)
-                        drawableToBitmap(drawable, 128)
-                    } else {
-                        getOrbitIconBitmap(context)
-                    }
-                }
-                ShortcutNotificationPreferences.ICON_TYPE_ORBIT -> {
-                    getOrbitIconBitmap(context)
-                }
-                ShortcutNotificationPreferences.ICON_TYPE_MINIMAL -> {
-                    getMinimalGlyphBitmap(context)
-                }
-                else -> getOrbitIconBitmap(context)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to resolve large icon for $iconType", e)
-            getOrbitIconBitmap(context)
+    fun buildSummaryNotification(context: Context, activeCount: Int): Notification {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_SHORTCUT_CONFIG, true)
         }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            SUMMARY_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_orbit_small_monochrome)
+            .setContentTitle("Orbit Shortcuts")
+            .setContentText("$activeCount active app shortcuts")
+            .setContentIntent(pendingIntent)
+            .setGroup(GROUP_KEY_SHORTCUTS)
+            .setGroupSummary(true)
+            .setColor(DEFAULT_ORBIT_COLOR)
+            .setColorized(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build()
     }
 
     private fun getOrbitIconBitmap(context: Context): Bitmap? {
@@ -250,7 +309,7 @@ object ShortcutNotificationManager {
     private fun getMinimalGlyphBitmap(context: Context): Bitmap? {
         return try {
             val drawable = ContextCompat.getDrawable(context, R.drawable.ic_bubble_atom_core)
-            drawable?.let { drawableToBitmap(it, 128, tintColor = 0xFFFF6B35.toInt()) }
+            drawable?.let { drawableToBitmap(it, 128, tintColor = DEFAULT_ORBIT_COLOR) }
         } catch (e: Exception) {
             null
         }
@@ -284,8 +343,15 @@ object ShortcutNotificationManager {
 
     /**
      * Synchronizes all active shortcut notifications with the system notification shade.
+     * Palette color extraction and notification building execute asynchronously off the main thread.
      */
     fun syncServiceState(context: Context) {
+        CoroutineScope(Dispatchers.Default).launch {
+            syncServiceStateInternal(context)
+        }
+    }
+
+    private suspend fun syncServiceStateInternal(context: Context) {
         val allShortcuts = ShortcutNotificationPreferences.getAllShortcuts(context)
         val enabledShortcuts = allShortcuts.filter { it.isEnabled && it.packageName.isNotBlank() }
         val serviceIntent = Intent(context, ShortcutNotificationService::class.java)
@@ -306,10 +372,28 @@ object ShortcutNotificationManager {
             // Immediately post or update each enabled notification
             for (shortcut in enabledShortcuts) {
                 try {
-                    val notif = buildNotification(context, shortcut)
+                    val largeIcon = resolveLargeIcon(context, shortcut.iconType, shortcut.packageName)
+                    val accentColor = extractAccentColor(largeIcon, cacheKey = shortcut.packageName)
+                    val notif = buildNotification(context, shortcut, overrideAccentColor = accentColor)
                     notificationManager?.notify(shortcut.notificationId, notif)
                 } catch (e: Exception) {
                     Log.w(TAG, "Direct notify failed for ${shortcut.id}: ${e.message}")
+                }
+            }
+
+            // If multiple shortcuts are enabled, manage the group summary notification
+            if (enabledShortcuts.size > 1) {
+                try {
+                    val summaryNotif = buildSummaryNotification(context, enabledShortcuts.size)
+                    notificationManager?.notify(SUMMARY_NOTIFICATION_ID, summaryNotif)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to post summary notification: ${e.message}")
+                }
+            } else {
+                try {
+                    notificationManager?.cancel(SUMMARY_NOTIFICATION_ID)
+                } catch (e: Exception) {
+                    // Ignore
                 }
             }
 
@@ -329,7 +413,13 @@ object ShortcutNotificationManager {
                 Log.e(TAG, "Error stopping ShortcutNotificationService", e)
             }
 
-            // Cancel all notifications
+            // Cancel summary and all individual notifications
+            try {
+                notificationManager?.cancel(SUMMARY_NOTIFICATION_ID)
+            } catch (e: Exception) {
+                // Ignore
+            }
+
             for (shortcut in allShortcuts) {
                 try {
                     notificationManager?.cancel(shortcut.notificationId)
@@ -341,6 +431,23 @@ object ShortcutNotificationManager {
                 notificationManager?.cancel(NOTIFICATION_ID)
             } catch (e: Exception) {
                 // Ignore
+            }
+        }
+    }
+
+    /**
+     * Instantly respawns a shortcut notification when swiped away by the user from the status bar
+     * if the shortcut is configured as persistent/ongoing.
+     */
+    fun respawnShortcutImmediately(context: Context, shortcutId: String, notificationId: Int) {
+        val shortcut = ShortcutNotificationPreferences.getShortcutById(context, shortcutId)
+        if (shortcut != null && shortcut.isEnabled && shortcut.isOngoing && shortcut.packageName.isNotBlank()) {
+            try {
+                val notif = buildNotification(context, shortcut)
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                notificationManager?.notify(shortcut.notificationId, notif)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to immediately respawn shortcut $shortcutId", e)
             }
         }
     }

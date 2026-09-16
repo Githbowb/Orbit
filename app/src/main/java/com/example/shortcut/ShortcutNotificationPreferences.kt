@@ -2,13 +2,8 @@ package com.example.shortcut
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
 import org.json.JSONArray
-import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 /**
@@ -26,13 +21,11 @@ object ShortcutNotificationPreferences {
     const val KEY_TITLE = "shortcut_notif_title"
     const val KEY_BODY = "shortcut_notif_body"
     const val KEY_ICON_TYPE = "shortcut_notif_icon_type"
-    const val KEY_BANNER_VERSION = "shortcut_notif_banner_version"
 
     const val ICON_TYPE_APP = "app"
     const val ICON_TYPE_ORBIT = "orbit"
     const val ICON_TYPE_MINIMAL = "minimal"
 
-    const val BANNER_FILE_NAME = "shortcut_notification_banner.png"
     const val DEFAULT_SHORTCUT_ID = "default_shortcut"
     const val BASE_NOTIFICATION_ID = 2002
 
@@ -56,9 +49,12 @@ object ShortcutNotificationPreferences {
                     val obj = array.getJSONObject(i)
                     list.add(ShortcutItem.fromJson(obj))
                 }
-                if (list.isNotEmpty()) {
-                    return list
+                // Purge any phantom/ghost items that have no package configured
+                val validShortcuts = list.filter { it.packageName.isNotBlank() }
+                if (validShortcuts.size != list.size) {
+                    saveAllShortcutsList(context, validShortcuts)
                 }
+                return validShortcuts
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse shortcuts list json", e)
             }
@@ -73,10 +69,6 @@ object ShortcutNotificationPreferences {
         val legacyEnabled = prefs.getBoolean(KEY_ENABLED, false)
         val legacyOngoing = prefs.getBoolean(KEY_ONGOING, true)
 
-        val legacyBannerFile = File(context.filesDir, BANNER_FILE_NAME)
-        val hasLegacyBanner = legacyBannerFile.exists()
-
-        // Only create a shortcut if the user actually configured an app previously
         if (legacyPackage.isNotBlank()) {
             val defaultItem = ShortcutItem(
                 id = DEFAULT_SHORTCUT_ID,
@@ -87,9 +79,7 @@ object ShortcutNotificationPreferences {
                 appName = legacyAppName,
                 title = legacyTitle,
                 body = legacyBody,
-                iconType = legacyIconType,
-                bannerFileName = if (hasLegacyBanner) BANNER_FILE_NAME else null,
-                bannerVersion = prefs.getInt(KEY_BANNER_VERSION, 0)
+                iconType = legacyIconType
             )
 
             val initialList = listOf(defaultItem)
@@ -122,7 +112,6 @@ object ShortcutNotificationPreferences {
                 .putString(KEY_TITLE, primary.title)
                 .putString(KEY_BODY, primary.body)
                 .putString(KEY_ICON_TYPE, primary.iconType)
-                .putInt(KEY_BANNER_VERSION, primary.bannerVersion)
                 .apply()
         }
     }
@@ -132,6 +121,11 @@ object ShortcutNotificationPreferences {
     }
 
     fun saveShortcut(context: Context, item: ShortcutItem) {
+        // Never save an empty ghost shortcut without a target app
+        if (item.packageName.isBlank()) {
+            Log.w(TAG, "Refusing to save empty shortcut without target app")
+            return
+        }
         val current = getAllShortcuts(context).toMutableList()
         val index = current.indexOfFirst { it.id == item.id }
         if (index >= 0) {
@@ -155,8 +149,7 @@ object ShortcutNotificationPreferences {
         val current = getAllShortcuts(context).toMutableList()
         val index = current.indexOfFirst { it.id == id }
         if (index >= 0) {
-            val item = current.removeAt(index)
-            deleteBannerBitmapForShortcut(context, item)
+            current.removeAt(index)
             saveAllShortcutsList(context, current)
             return true
         }
@@ -178,59 +171,11 @@ object ShortcutNotificationPreferences {
             isOngoing = true,
             packageName = pkg,
             appName = appName,
-            title = appName,
-            body = "",
+            title = if (appName.isNotBlank()) "Open $appName" else "",
+            body = "Tap to launch",
             iconType = ICON_TYPE_APP,
-            bannerFileName = null,
-            bannerVersion = 0,
             createdAt = System.currentTimeMillis()
         )
-    }
-
-    fun loadBannerBitmap(context: Context, item: ShortcutItem): Bitmap? {
-        val fileName = item.bannerFileName
-            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
-            ?: return null
-        val file = File(context.filesDir, fileName)
-        if (!file.exists()) return null
-        return try {
-            BitmapFactory.decodeFile(file.absolutePath)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode banner bitmap for ${item.id}", e)
-            null
-        }
-    }
-
-    fun hasBannerImage(context: Context, item: ShortcutItem): Boolean {
-        val fileName = item.bannerFileName
-            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
-            ?: return false
-        return File(context.filesDir, fileName).exists()
-    }
-
-    fun saveBannerBitmapForShortcut(context: Context, shortcutId: String, bitmap: Bitmap): String? {
-        return try {
-            val fileName = "shortcut_banner_${shortcutId}.png"
-            val file = File(context.filesDir, fileName)
-            FileOutputStream(file).use { output ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-            }
-            fileName
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save banner bitmap for shortcut $shortcutId", e)
-            null
-        }
-    }
-
-    fun deleteBannerBitmapForShortcut(context: Context, item: ShortcutItem) {
-        val fileName = item.bannerFileName
-            ?: (if (item.id == DEFAULT_SHORTCUT_ID) BANNER_FILE_NAME else null)
-        fileName?.let { name ->
-            val file = File(context.filesDir, name)
-            if (file.exists()) {
-                file.delete()
-            }
-        }
     }
 
     // ==========================================
@@ -288,8 +233,7 @@ object ShortcutNotificationPreferences {
     fun getTitle(context: Context): String {
         val primary = getAllShortcuts(context).firstOrNull()
         if (primary != null) {
-            if (primary.title.isNotBlank()) return primary.title
-            if (primary.appName.isNotBlank()) return primary.appName
+            return primary.displayTitle()
         }
         return "App Shortcut"
     }
@@ -299,7 +243,11 @@ object ShortcutNotificationPreferences {
     }
 
     fun getBody(context: Context): String {
-        return getAllShortcuts(context).firstOrNull()?.body ?: ""
+        val primary = getAllShortcuts(context).firstOrNull()
+        if (primary != null) {
+            return primary.displayBody()
+        }
+        return "Tap to launch"
     }
 
     fun getRawBody(context: Context): String {
@@ -308,55 +256,6 @@ object ShortcutNotificationPreferences {
 
     fun getIconType(context: Context): String {
         return getAllShortcuts(context).firstOrNull()?.iconType ?: ICON_TYPE_APP
-    }
-
-    fun getBannerVersion(context: Context): Int {
-        return getAllShortcuts(context).firstOrNull()?.bannerVersion ?: 0
-    }
-
-    fun getBannerFile(context: Context): File {
-        val primary = getAllShortcuts(context).firstOrNull()
-        val name = primary?.bannerFileName ?: BANNER_FILE_NAME
-        return File(context.filesDir, name)
-    }
-
-    fun hasBannerImage(context: Context): Boolean {
-        val primary = getAllShortcuts(context).firstOrNull()
-        return primary?.let { hasBannerImage(context, it) } ?: false
-    }
-
-    fun loadBannerBitmap(context: Context): Bitmap? {
-        val primary = getAllShortcuts(context).firstOrNull()
-        return primary?.let { loadBannerBitmap(context, it) }
-    }
-
-    fun saveBannerBitmap(context: Context, bitmap: Bitmap): Boolean {
-        val shortcuts = getAllShortcuts(context).toMutableList()
-        if (shortcuts.isNotEmpty()) {
-            val primary = shortcuts[0]
-            val fileName = saveBannerBitmapForShortcut(context, primary.id, bitmap)
-            if (fileName != null) {
-                shortcuts[0] = primary.copy(
-                    bannerFileName = fileName,
-                    bannerVersion = primary.bannerVersion + 1
-                )
-                saveAllShortcutsList(context, shortcuts)
-                return true
-            }
-        }
-        return false
-    }
-
-    fun deleteBannerImage(context: Context): Boolean {
-        val shortcuts = getAllShortcuts(context).toMutableList()
-        if (shortcuts.isNotEmpty()) {
-            val primary = shortcuts[0]
-            deleteBannerBitmapForShortcut(context, primary)
-            shortcuts[0] = primary.copy(bannerFileName = null, bannerVersion = primary.bannerVersion + 1)
-            saveAllShortcutsList(context, shortcuts)
-            return true
-        }
-        return false
     }
 
     fun saveAll(
