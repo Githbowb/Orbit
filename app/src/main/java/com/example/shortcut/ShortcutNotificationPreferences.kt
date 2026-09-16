@@ -64,7 +64,7 @@ object ShortcutNotificationPreferences {
             }
         }
 
-        // Migration from legacy single-shortcut prefs or initialize default
+        // Migration from legacy single-shortcut prefs only if valid legacy shortcut was configured
         val legacyPackage = prefs.getString(KEY_PACKAGE_NAME, "") ?: ""
         val legacyAppName = prefs.getString(KEY_APP_NAME, "") ?: ""
         val legacyTitle = prefs.getString(KEY_TITLE, "") ?: ""
@@ -76,23 +76,29 @@ object ShortcutNotificationPreferences {
         val legacyBannerFile = File(context.filesDir, BANNER_FILE_NAME)
         val hasLegacyBanner = legacyBannerFile.exists()
 
-        val defaultItem = ShortcutItem(
-            id = DEFAULT_SHORTCUT_ID,
-            notificationId = BASE_NOTIFICATION_ID,
-            isEnabled = legacyEnabled,
-            isOngoing = legacyOngoing,
-            packageName = legacyPackage,
-            appName = legacyAppName,
-            title = legacyTitle,
-            body = legacyBody,
-            iconType = legacyIconType,
-            bannerFileName = if (hasLegacyBanner) BANNER_FILE_NAME else null,
-            bannerVersion = prefs.getInt(KEY_BANNER_VERSION, 0)
-        )
+        // Only create a shortcut if the user actually configured an app previously
+        if (legacyPackage.isNotBlank()) {
+            val defaultItem = ShortcutItem(
+                id = DEFAULT_SHORTCUT_ID,
+                notificationId = BASE_NOTIFICATION_ID,
+                isEnabled = legacyEnabled,
+                isOngoing = legacyOngoing,
+                packageName = legacyPackage,
+                appName = legacyAppName,
+                title = legacyTitle,
+                body = legacyBody,
+                iconType = legacyIconType,
+                bannerFileName = if (hasLegacyBanner) BANNER_FILE_NAME else null,
+                bannerVersion = prefs.getInt(KEY_BANNER_VERSION, 0)
+            )
 
-        val initialList = listOf(defaultItem)
-        saveAllShortcutsList(context, initialList)
-        return initialList
+            val initialList = listOf(defaultItem)
+            saveAllShortcutsList(context, initialList)
+            return initialList
+        }
+
+        // Clean slate: return empty list without persisting phantom defaults
+        return emptyList()
     }
 
     /**

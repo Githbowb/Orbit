@@ -85,135 +85,12 @@ fun NotificationImageCropperDialog(
                 val srcW = sourceBitmap.width.toFloat()
                 val srcH = sourceBitmap.height.toFloat()
 
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val containerWidth = constraints.maxWidth.toFloat()
-                    val containerHeight = constraints.maxHeight.toFloat()
-
-                    // Top and bottom reserved spaces for controls
-                    val topPadding = 84f
-                    val bottomPadding = 180f
-                    val availableHeight = (containerHeight - topPadding - bottomPadding).coerceAtLeast(100f)
-
-                    // Calculate crop frame dimensions
-                    val maxFrameWidth = containerWidth * 0.90f
-                    var frameWidth = maxFrameWidth
-                    var frameHeight = frameWidth / selectedAspectRatio
-
-                    if (frameHeight > availableHeight) {
-                        frameHeight = availableHeight
-                        frameWidth = frameHeight * selectedAspectRatio
-                    }
-
-                    // Fit scale so image minimally covers the entire crop frame
-                    val baseFitScale = maxOf(frameWidth / srcW, frameHeight / srcH)
-                    val effectiveScale = baseFitScale * scale
-
-                    val curImgW = srcW * effectiveScale
-                    val curImgH = srcH * effectiveScale
-
-                    val maxPanX = ((curImgW - frameWidth) / 2f).coerceAtLeast(0f)
-                    val maxPanY = ((curImgH - frameHeight) / 2f).coerceAtLeast(0f)
-
-                    // Clamped offset
-                    val clampedOffset = Offset(
-                        x = offset.x.coerceIn(-maxPanX, maxPanX),
-                        y = offset.y.coerceIn(-maxPanY, maxPanY)
-                    )
-
-                    val cX = containerWidth / 2f
-                    val cY = topPadding + (availableHeight / 2f)
-
-                    // Interactive Gesture Area
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(sourceBitmap, selectedAspectRatio) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
-                                    val newEffective = baseFitScale * newScale
-                                    val newImgW = srcW * newEffective
-                                    val newImgH = srcH * newEffective
-                                    val curMaxX = ((newImgW - frameWidth) / 2f).coerceAtLeast(0f)
-                                    val curMaxY = ((newImgH - frameHeight) / 2f).coerceAtLeast(0f)
-
-                                    scale = newScale
-                                    offset = Offset(
-                                        x = (offset.x + pan.x).coerceIn(-curMaxX, curMaxX),
-                                        y = (offset.y + pan.y).coerceIn(-curMaxY, curMaxY)
-                                    )
-                                }
-                            }
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val drawLeft = (cX + clampedOffset.x) - (curImgW / 2f)
-                            val drawTop = (cY + clampedOffset.y) - (curImgH / 2f)
-
-                            // 1. Draw source image
-                            drawImage(
-                                image = sourceBitmap.asImageBitmap(),
-                                dstOffset = IntOffset(drawLeft.roundToInt(), drawTop.roundToInt()),
-                                dstSize = IntSize(curImgW.roundToInt(), curImgH.roundToInt()),
-                                filterQuality = FilterQuality.High
-                            )
-
-                            // 2. Crop rectangle boundaries
-                            val cropLeft = cX - (frameWidth / 2f)
-                            val cropTop = cY - (frameHeight / 2f)
-                            val cropRight = cX + (frameWidth / 2f)
-                            val cropBottom = cY + (frameHeight / 2f)
-
-                            // 3. Dark mask outside crop window
-                            val maskPath = Path().apply {
-                                fillType = PathFillType.EvenOdd
-                                addRect(Rect(0f, 0f, size.width, size.height))
-                                addRoundRect(
-                                    RoundRect(
-                                        left = cropLeft,
-                                        top = cropTop,
-                                        right = cropRight,
-                                        bottom = cropBottom,
-                                        cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx())
-                                    )
-                                )
-                            }
-                            drawPath(maskPath, color = Color(0xDD05070F))
-
-                            // 4. Rule-of-thirds grid inside crop window
-                            val stepX = frameWidth / 3f
-                            val stepY = frameHeight / 3f
-                            val gridColor = Color.White.copy(alpha = 0.22f)
-                            val gridStroke = Stroke(width = 1.dp.toPx())
-
-                            drawLine(gridColor, Offset(cropLeft + stepX, cropTop), Offset(cropLeft + stepX, cropBottom), gridStroke.width)
-                            drawLine(gridColor, Offset(cropLeft + stepX * 2, cropTop), Offset(cropLeft + stepX * 2, cropBottom), gridStroke.width)
-                            drawLine(gridColor, Offset(cropLeft, cropTop + stepY), Offset(cropRight, cropTop + stepY), gridStroke.width)
-                            drawLine(gridColor, Offset(cropLeft, cropTop + stepY * 2), Offset(cropRight, cropTop + stepY * 2), gridStroke.width)
-
-                            // 5. Outer glow and border for crop window
-                            drawRoundRect(
-                                color = signalOrange.copy(alpha = 0.4f),
-                                topLeft = Offset(cropLeft - 1.dp.toPx(), cropTop - 1.dp.toPx()),
-                                size = androidx.compose.ui.geometry.Size(frameWidth + 2.dp.toPx(), frameHeight + 2.dp.toPx()),
-                                cornerRadius = CornerRadius(15.dp.toPx(), 15.dp.toPx()),
-                                style = Stroke(width = 3.dp.toPx())
-                            )
-
-                            drawRoundRect(
-                                color = signalOrange,
-                                topLeft = Offset(cropLeft, cropTop),
-                                size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
-                                cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()),
-                                style = Stroke(width = 2.dp.toPx())
-                            )
-                        }
-                    }
-
-                    // Top Bar Header
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 1. Top Bar Header (Fixed height, always visible)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 18.dp)
-                            .align(Alignment.TopCenter),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -246,52 +123,147 @@ fun NotificationImageCropperDialog(
                             )
                         }
 
-                        Button(
-                            onClick = {
-                                val cropped = performCrop(
-                                    source = sourceBitmap,
-                                    frameWidth = frameWidth,
-                                    frameHeight = frameHeight,
-                                    scale = effectiveScale,
-                                    panOffset = clampedOffset,
-                                    containerWidth = containerWidth,
-                                    containerHeight = availableHeight,
-                                    topOffset = 0f
-                                )
-                                if (cropped != null) {
-                                    onCropped(cropped)
-                                } else {
-                                    onCropped(sourceBitmap)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Apply",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        // Placeholder to balance the close button on left
+                        Spacer(modifier = Modifier.size(40.dp))
                     }
 
-                    // Bottom Floating Control Panel
+                    // 2. Middle Interactive Cropping Canvas (Takes available weight, never overflows)
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        val containerWidth = constraints.maxWidth.toFloat()
+                        val containerHeight = constraints.maxHeight.toFloat()
+
+                        val horizontalMargin = 24f
+                        val verticalMargin = 16f
+                        val availableWidth = (containerWidth - horizontalMargin * 2).coerceAtLeast(100f)
+                        val availableHeight = (containerHeight - verticalMargin * 2).coerceAtLeast(100f)
+
+                        var frameWidth = availableWidth
+                        var frameHeight = frameWidth / selectedAspectRatio
+
+                        if (frameHeight > availableHeight) {
+                            frameHeight = availableHeight
+                            frameWidth = frameHeight * selectedAspectRatio
+                        }
+
+                        // Fit scale so image minimally covers the entire crop frame
+                        val baseFitScale = maxOf(frameWidth / srcW, frameHeight / srcH)
+                        val effectiveScale = baseFitScale * scale
+
+                        val curImgW = srcW * effectiveScale
+                        val curImgH = srcH * effectiveScale
+
+                        val maxPanX = ((curImgW - frameWidth) / 2f).coerceAtLeast(0f)
+                        val maxPanY = ((curImgH - frameHeight) / 2f).coerceAtLeast(0f)
+
+                        val clampedOffset = Offset(
+                            x = offset.x.coerceIn(-maxPanX, maxPanX),
+                            y = offset.y.coerceIn(-maxPanY, maxPanY)
+                        )
+
+                        val cX = containerWidth / 2f
+                        val cY = containerHeight / 2f
+
+                        // Interactive Gesture Area
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(sourceBitmap, selectedAspectRatio) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                    val newEffective = baseFitScale * newScale
+                                    val newImgW = srcW * newEffective
+                                    val newImgH = srcH * newEffective
+                                    val curMaxX = ((newImgW - frameWidth) / 2f).coerceAtLeast(0f)
+                                    val curMaxY = ((newImgH - frameHeight) / 2f).coerceAtLeast(0f)
+
+                                    scale = newScale
+                                    offset = Offset(
+                                        x = (offset.x + pan.x).coerceIn(-curMaxX, curMaxX),
+                                        y = (offset.y + pan.y).coerceIn(-curMaxY, curMaxY)
+                                    )
+                                }
+                            }
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val drawLeft = (cX + clampedOffset.x) - (curImgW / 2f)
+                                val drawTop = (cY + clampedOffset.y) - (curImgH / 2f)
+
+                                // 1. Draw source image
+                                drawImage(
+                                    image = sourceBitmap.asImageBitmap(),
+                                    dstOffset = IntOffset(drawLeft.roundToInt(), drawTop.roundToInt()),
+                                    dstSize = IntSize(curImgW.roundToInt(), curImgH.roundToInt()),
+                                    filterQuality = FilterQuality.High
+                                )
+
+                                // 2. Crop rectangle boundaries
+                                val cropLeft = cX - (frameWidth / 2f)
+                                val cropTop = cY - (frameHeight / 2f)
+                                val cropRight = cX + (frameWidth / 2f)
+                                val cropBottom = cY + (frameHeight / 2f)
+
+                                // 3. Dark mask outside crop window
+                                val maskPath = Path().apply {
+                                    fillType = PathFillType.EvenOdd
+                                    addRect(Rect(0f, 0f, size.width, size.height))
+                                    addRoundRect(
+                                        RoundRect(
+                                            left = cropLeft,
+                                            top = cropTop,
+                                            right = cropRight,
+                                            bottom = cropBottom,
+                                            cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx())
+                                        )
+                                    )
+                                }
+                                drawPath(maskPath, color = Color(0xDD05070F))
+
+                                // 4. Rule-of-thirds grid inside crop window
+                                val stepX = frameWidth / 3f
+                                val stepY = frameHeight / 3f
+                                val gridColor = Color.White.copy(alpha = 0.22f)
+                                val gridStroke = Stroke(width = 1.dp.toPx())
+
+                                drawLine(gridColor, Offset(cropLeft + stepX, cropTop), Offset(cropLeft + stepX, cropBottom), gridStroke.width)
+                                drawLine(gridColor, Offset(cropLeft + stepX * 2, cropTop), Offset(cropLeft + stepX * 2, cropBottom), gridStroke.width)
+                                drawLine(gridColor, Offset(cropLeft, cropTop + stepY), Offset(cropRight, cropTop + stepY), gridStroke.width)
+                                drawLine(gridColor, Offset(cropLeft, cropTop + stepY * 2), Offset(cropRight, cropTop + stepY * 2), gridStroke.width)
+
+                                // 5. Outer glow and border for crop window
+                                drawRoundRect(
+                                    color = signalOrange.copy(alpha = 0.4f),
+                                    topLeft = Offset(cropLeft - 1.dp.toPx(), cropTop - 1.dp.toPx()),
+                                    size = androidx.compose.ui.geometry.Size(frameWidth + 2.dp.toPx(), frameHeight + 2.dp.toPx()),
+                                    cornerRadius = CornerRadius(15.dp.toPx(), 15.dp.toPx()),
+                                    style = Stroke(width = 3.dp.toPx())
+                                )
+
+                                drawRoundRect(
+                                    color = signalOrange,
+                                    topLeft = Offset(cropLeft, cropTop),
+                                    size = androidx.compose.ui.geometry.Size(frameWidth, frameHeight),
+                                    cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()),
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+                            }
+                        }
+
+                        // Apply Action Button floating at bottom right of canvas area or anchored
+                    }
+
+                    // 3. Bottom Control Panel & Apply Action (Always pinned and visible inside the viewport)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .padding(16.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .background(cardSurface.copy(alpha = 0.95f))
                             .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Aspect Ratio selector & Reset
@@ -346,7 +318,7 @@ fun NotificationImageCropperDialog(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         // Zoom Slider & Quick Buttons
                         Row(
@@ -371,7 +343,7 @@ fun NotificationImageCropperDialog(
                                 valueRange = 1f..5f,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .padding(horizontal = 8.dp),
+                                    .padding(horizontal = 6.dp),
                                 colors = SliderDefaults.colors(
                                     thumbColor = signalOrange,
                                     activeTrackColor = signalOrange,
@@ -391,6 +363,64 @@ fun NotificationImageCropperDialog(
                                 )
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Full-Width Primary Action Buttons: Cancel and Apply
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = "Cancel",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    val cropped = performCropDirect(
+                                        source = sourceBitmap,
+                                        aspectRatio = selectedAspectRatio,
+                                        userScale = scale,
+                                        userPan = offset
+                                    )
+                                    if (cropped != null) {
+                                        onCropped(cropped)
+                                    } else {
+                                        onCropped(sourceBitmap)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = signalOrange),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Apply Cover Art",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
                 }
             } else {
@@ -399,6 +429,67 @@ fun NotificationImageCropperDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Calculates the exact crop rectangle on the source bitmap directly from
+ * aspect ratio, user pan, and zoom, returning a crisp high-resolution Bitmap.
+ */
+private fun performCropDirect(
+    source: Bitmap,
+    aspectRatio: Float,
+    userScale: Float,
+    userPan: Offset
+): Bitmap? {
+    return try {
+        val srcW = source.width.toFloat()
+        val srcH = source.height.toFloat()
+
+        // Base crop window centered on source bitmap with requested aspect ratio
+        var baseW = srcW
+        var baseH = baseW / aspectRatio
+        if (baseH > srcH) {
+            baseH = srcH
+            baseW = baseH * aspectRatio
+        }
+
+        // As user zooms in, the cropped region of the source image becomes smaller
+        val finalCropW = baseW / userScale
+        val finalCropH = baseH / userScale
+
+        // The maximum distance the user could pan relative to the cropped frame
+        val maxSourcePanX = ((srcW - finalCropW) / 2f).coerceAtLeast(0f)
+        val maxSourcePanY = ((srcH - finalCropH) / 2f).coerceAtLeast(0f)
+
+        // Standardize pan offset to source bitmap coordinate space
+        val normPanX = (userPan.x / 100f * (srcW / 4f)).coerceIn(-maxSourcePanX, maxSourcePanX)
+        val normPanY = (userPan.y / 100f * (srcH / 4f)).coerceIn(-maxSourcePanY, maxSourcePanY)
+
+        val cropCenterX = (srcW / 2f) - normPanX
+        val cropCenterY = (srcH / 2f) - normPanY
+
+        val finalLeft = (cropCenterX - (finalCropW / 2f)).coerceIn(0f, srcW - finalCropW)
+        val finalTop = (cropCenterY - (finalCropH / 2f)).coerceIn(0f, srcH - finalCropH)
+
+        val cropWInt = finalCropW.roundToInt().coerceIn(1, (srcW - finalLeft).roundToInt())
+        val cropHInt = finalCropH.roundToInt().coerceIn(1, (srcH - finalTop).roundToInt())
+
+        val cropped = Bitmap.createBitmap(
+            source,
+            finalLeft.roundToInt(),
+            finalTop.roundToInt(),
+            cropWInt,
+            cropHInt
+        )
+
+        // Standardize output to crisp 1280x720 or matching aspect ratio
+        val targetWidth = 1280
+        val targetHeight = (targetWidth / aspectRatio).roundToInt().coerceAtLeast(1)
+        Bitmap.createScaledBitmap(cropped, targetWidth, targetHeight, true)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }
 
