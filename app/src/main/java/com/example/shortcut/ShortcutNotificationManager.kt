@@ -122,41 +122,65 @@ object ShortcutNotificationManager {
             builder.setLargeIcon(largeIconBitmap)
         }
 
-        if (bannerBitmap != null) {
-            try {
-                // Collapsed View - full card background cover matching Live Preview
-                val collapsedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_collapsed)
+        try {
+            // Collapsed View - full card background cover matching Live Preview
+            val collapsedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_collapsed)
+            collapsedViews.setOnClickPendingIntent(R.id.notif_collapsed_root, pendingIntent)
+
+            if (bannerBitmap != null) {
+                collapsedViews.setViewVisibility(R.id.notif_bg_image, View.VISIBLE)
                 collapsedViews.setImageViewBitmap(R.id.notif_bg_image, bannerBitmap)
-                if (largeIconBitmap != null) {
-                    collapsedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
-                }
-                collapsedViews.setTextViewText(R.id.notif_title, title)
-                if (body.isNotBlank()) {
-                    collapsedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
-                    collapsedViews.setTextViewText(R.id.notif_body, body)
-                } else {
-                    collapsedViews.setViewVisibility(R.id.notif_body, View.GONE)
-                }
+                collapsedViews.setViewVisibility(R.id.notif_scrim, View.VISIBLE)
+                collapsedViews.setViewVisibility(R.id.notif_header_badge, View.VISIBLE)
+            } else {
+                collapsedViews.setViewVisibility(R.id.notif_bg_image, View.GONE)
+                collapsedViews.setViewVisibility(R.id.notif_scrim, View.GONE)
+                collapsedViews.setViewVisibility(R.id.notif_header_badge, View.GONE)
+            }
 
-                // Expanded View - expanded media cover matching Live Preview
-                val expandedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_expanded)
+            if (largeIconBitmap != null) {
+                collapsedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
+            }
+            collapsedViews.setTextViewText(R.id.notif_title, title)
+            if (body.isNotBlank()) {
+                collapsedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
+                collapsedViews.setTextViewText(R.id.notif_body, body)
+            } else {
+                collapsedViews.setViewVisibility(R.id.notif_body, View.GONE)
+            }
+
+            // Expanded View - expanded media cover matching Live Preview
+            val expandedViews = RemoteViews(context.packageName, R.layout.notification_shortcut_expanded)
+            expandedViews.setOnClickPendingIntent(R.id.notif_expanded_root, pendingIntent)
+
+            if (bannerBitmap != null) {
+                expandedViews.setViewVisibility(R.id.notif_bg_image, View.VISIBLE)
                 expandedViews.setImageViewBitmap(R.id.notif_bg_image, bannerBitmap)
-                if (largeIconBitmap != null) {
-                    expandedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
-                }
-                expandedViews.setTextViewText(R.id.notif_title, title)
-                if (body.isNotBlank()) {
-                    expandedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
-                    expandedViews.setTextViewText(R.id.notif_body, body)
-                } else {
-                    expandedViews.setViewVisibility(R.id.notif_body, View.GONE)
-                }
+                expandedViews.setViewVisibility(R.id.notif_scrim, View.VISIBLE)
+                expandedViews.setViewVisibility(R.id.notif_expanded_badge, View.VISIBLE)
+            } else {
+                expandedViews.setViewVisibility(R.id.notif_bg_image, View.GONE)
+                expandedViews.setViewVisibility(R.id.notif_scrim, View.GONE)
+                expandedViews.setViewVisibility(R.id.notif_expanded_badge, View.GONE)
+            }
 
-                builder.setCustomContentView(collapsedViews)
-                builder.setCustomBigContentView(expandedViews)
-                // Note: Omit DecoratedCustomViewStyle to give RemoteViews full-bleed edge-to-edge card canvas
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to apply custom RemoteViews with background image", e)
+            if (largeIconBitmap != null) {
+                expandedViews.setImageViewBitmap(R.id.notif_app_icon, largeIconBitmap)
+            }
+            expandedViews.setTextViewText(R.id.notif_title, title)
+            if (body.isNotBlank()) {
+                expandedViews.setViewVisibility(R.id.notif_body, View.VISIBLE)
+                expandedViews.setTextViewText(R.id.notif_body, body)
+            } else {
+                expandedViews.setViewVisibility(R.id.notif_body, View.GONE)
+            }
+
+            builder.setCustomContentView(collapsedViews)
+            builder.setCustomBigContentView(expandedViews)
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply custom RemoteViews", e)
+            if (bannerBitmap != null) {
                 val bigPictureStyle = NotificationCompat.BigPictureStyle()
                     .bigPicture(bannerBitmap)
                 if (body.isNotBlank()) {

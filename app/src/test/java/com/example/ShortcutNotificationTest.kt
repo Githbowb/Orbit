@@ -181,4 +181,39 @@ class ShortcutNotificationTest {
         // Clean up
         ShortcutNotificationPreferences.deleteBannerImage(context)
     }
+
+    @Test
+    fun `multiple shortcuts management creates distinct items with unique notification IDs`() {
+        val shortcut1 = ShortcutNotificationPreferences.createNewShortcut(context, "com.google.android.youtube", "YouTube")
+        ShortcutNotificationPreferences.saveShortcut(context, shortcut1)
+
+        val shortcut2 = ShortcutNotificationPreferences.createNewShortcut(context, "com.spotify.music", "Spotify")
+        ShortcutNotificationPreferences.saveShortcut(context, shortcut2)
+
+        val allShortcuts = ShortcutNotificationPreferences.getAllShortcuts(context)
+        assertTrue(allShortcuts.size >= 2)
+        assertNotEquals(shortcut1.notificationId, shortcut2.notificationId)
+        assertNotEquals(shortcut1.id, shortcut2.id)
+
+        // Toggle individual shortcut
+        ShortcutNotificationPreferences.setShortcutEnabled(context, shortcut1.id, false)
+        val updated1 = ShortcutNotificationPreferences.getShortcutById(context, shortcut1.id)
+        assertNotNull(updated1)
+        assertFalse(updated1!!.isEnabled)
+
+        val updated2 = ShortcutNotificationPreferences.getShortcutById(context, shortcut2.id)
+        assertNotNull(updated2)
+        assertTrue(updated2!!.isEnabled)
+
+        // Build notifications for individual shortcut items
+        val notif1 = ShortcutNotificationManager.buildNotification(context, shortcut1)
+        val notif2 = ShortcutNotificationManager.buildNotification(context, shortcut2)
+        assertNotNull(notif1)
+        assertNotNull(notif2)
+
+        // Delete shortcut
+        val deleted = ShortcutNotificationPreferences.deleteShortcut(context, shortcut1.id)
+        assertTrue(deleted)
+        assertNull(ShortcutNotificationPreferences.getShortcutById(context, shortcut1.id))
+    }
 }
