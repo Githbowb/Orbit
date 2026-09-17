@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -624,38 +625,6 @@ private fun ShortcutItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (shortcut.isOngoing) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(accentColor.copy(alpha = 0.15f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "ONGOING",
-                                color = accentColor,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White.copy(alpha = 0.06f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "SWIPEABLE",
-                                color = inkDim,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -731,7 +700,7 @@ private fun ShortcutEditorContent(
     val cardBg = Color(0xFF151D33)
 
     var isEnabled by remember { mutableStateOf(initialItem.isEnabled) }
-    var isOngoing by remember { mutableStateOf(initialItem.isOngoing) }
+    val isOngoing = true
     var targetPackage by remember { mutableStateOf(initialItem.packageName) }
     var targetAppName by remember { mutableStateOf(initialItem.appName) }
     var customTitle by remember { mutableStateOf(initialItem.title) }
@@ -879,76 +848,6 @@ private fun ShortcutEditorContent(
                             }
                             isEnabled = checked
                         },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = signalOrange,
-                            uncheckedThumbColor = inkDim,
-                            uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Ongoing Switch Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(if (isOngoing) signalOrange.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isOngoing) Icons.Default.Lock else Icons.Default.LockOpen,
-                            contentDescription = null,
-                            tint = if (isOngoing) signalOrange else inkDim,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = stringResource(R.string.shortcut_notif_ongoing_toggle),
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (isOngoing) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(signalOrange.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.shortcut_notif_ongoing_chip),
-                                        color = signalOrange,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                        Text(
-                            text = if (isOngoing) "Pinned persistently in status bar (recommended)" else "Swipeable and dismissable from notification shade",
-                            color = inkDim,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Switch(
-                        checked = isOngoing,
-                        onCheckedChange = { isOngoing = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = signalOrange,

@@ -18,4 +18,25 @@ class ExampleRobolectricTest {
     val appName = context.getString(R.string.app_name)
     assertEquals("Orbit", appName)
   }
+
+  @Test
+  fun `ocr and app launcher cannot be disabled`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    // Attempt to disable OCR and Launcher
+    ToolsPreferences.setToolEnabled(context, ToolsPreferences.KEY_OCR, false)
+    ToolsPreferences.setToolEnabled(context, ToolsPreferences.KEY_LAUNCHPAD, false)
+
+    // Verify they remain enabled
+    org.junit.Assert.assertTrue(ToolsPreferences.isToolEnabled(context, ToolsPreferences.KEY_OCR))
+    org.junit.Assert.assertTrue(ToolsPreferences.isToolEnabled(context, ToolsPreferences.KEY_LAUNCHPAD))
+  }
+
+  @Test
+  fun `shortcut tutorial strings are available`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val tutorialTitle = context.getString(R.string.shortcut_tutorial_title)
+    val alwaysActive = context.getString(R.string.tool_always_active)
+    org.junit.Assert.assertTrue(tutorialTitle.isNotBlank())
+    org.junit.Assert.assertTrue(alwaysActive.isNotBlank())
+  }
 }

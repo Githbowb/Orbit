@@ -432,4 +432,66 @@
     <string name="shortcut_notif_preview_mode_collapsed">Collapsed (Default)</string>
     <string name="shortcut_notif_preview_mode_expanded">Expanded View</string>
     <string name="back">Back</string>
+
+    <!-- Tool Permanent Status & Shortcut Tutorial Strings -->
+    <string name="tool_always_active">Always Active</string>
+    <string name="tools_shortcut_section_title">System Shade Shortcuts</string>
+    <string name="tools_shortcut_section_desc">Pin your favorite apps directly to your Android notification shade for 1-swipe access from anywhere.</string>
+    <string name="tools_shortcut_open_tutorial">Shortcut Guide</string>
+    <string name="tools_shortcut_jump_to_section">Go to Shortcuts</string>
+    <string name="shortcut_tutorial_title">Shortcut Notification Guide</string>
+    <string name="shortcut_tutorial_subtitle">The idea, location, benefits, and how to use it</string>
+    <string name="shortcut_tutorial_idea_badge">THE IDEA</string>
+    <string name="shortcut_tutorial_idea_title">What is the Shortcut Section?</string>
+    <string name="shortcut_tutorial_idea_desc">The Shortcut section allows you to pin interactive launcher cards for your favorite applications straight into your phone\'s notification drawer. Instead of navigating back to the home screen or app launcher, your selected apps are always accessible with a single swipe down from the top of the screen.</string>
+    <string name="shortcut_tutorial_where_badge">LOCATION</string>
+    <string name="shortcut_tutorial_where_title">Where Can You Find It?</string>
+    <string name="shortcut_tutorial_where_desc">In the bottom navigation bar, tap STUDIO, then select the "Shortcut" tab (the 4th sub-tab, right next to Presets, Canvas, and Collection).</string>
+    <string name="shortcut_tutorial_where_path">Bottom Bar → STUDIO → Shortcut</string>
+    <string name="shortcut_tutorial_why_badge">WHY USE IT</string>
+    <string name="shortcut_tutorial_why_title">Why Should You Use It?</string>
+    <string name="shortcut_tutorial_why_p1_title">1-Swipe Universal Access</string>
+    <string name="shortcut_tutorial_why_p1_desc">Open apps while inside games, videos, or even directly from your lock screen without switching away.</string>
+    <string name="shortcut_tutorial_why_p2_title">Permanent &amp; Non-Dismissible</string>
+    <string name="shortcut_tutorial_why_p2_desc">Turn on "Ongoing" mode so the shortcut stays pinned even if you tap "Clear all notifications".</string>
+    <string name="shortcut_tutorial_why_p3_title">Custom Cover Art &amp; Dynamic Colors</string>
+    <string name="shortcut_tutorial_why_p3_desc">Personalize each card with custom cropped background photos, custom titles, and dynamic theme colors.</string>
+    <string name="shortcut_tutorial_how_badge">HOW TO USE</string>
+    <string name="shortcut_tutorial_how_title">How to Set Up in 4 Easy Steps</string>
+    <string name="shortcut_tutorial_step1_title">Step 1: Open Shortcuts</string>
+    <string name="shortcut_tutorial_step1_desc">Go to Studio → Shortcut and tap \"+ Add New Shortcut\" (or tap any existing card).</string>
+    <string name="shortcut_tutorial_step2_title">Step 2: Pick Your App</string>
+    <string name="shortcut_tutorial_step2_desc">Tap \"Select\" under Target App and choose any app installed on your device.</string>
+    <string name="shortcut_tutorial_step3_title">Step 3: Personalize (Optional)</string>
+    <string name="shortcut_tutorial_step3_desc">Add a custom label or upload and crop a background banner photo to make it unique.</string>
+    <string name="shortcut_tutorial_step4_title">Step 4: Save &amp; Pull Down Shade</string>
+    <string name="shortcut_tutorial_step4_desc">Enable \"Ongoing\" to lock it in place, then tap \"Save &amp; Apply Notification\". Pull down your status bar to launch anytime!</string>
+    <string name="shortcut_tutorial_btn_got_it">Got It</string>
+    <string name="shortcut_tutorial_btn_go_to_shortcuts">Go to Shortcut Section</string>
+    <string name="shortcut_tutorial_guide_btn">Quick Guide</string>
+
+    <!-- Live Interactive Step-by-Step Tour Strings -->
+    <string name="live_tour_title">Interactive Tour</string>
+    <string name="live_tour_step_counter">STEP %1$d OF %2$d</string>
+    <string name="live_tour_step1_badge">STEP 1 · ACTIVATE ORBIT</string>
+    <string name="live_tour_step1_title">Turn On Orbit Floating Service</string>
+    <string name="live_tour_step1_desc">Orbit floats over any screen for quick access. Flip the Floating Service switch here to summon your Orbit ring over any app or game.</string>
+    <string name="live_tour_step1_active">Orbit is currently active</string>
+    <string name="live_tour_step1_inactive">Toggle the switch above to activate</string>
+    <string name="live_tour_step2_badge">STEP 2 · ORBIT RING</string>
+    <string name="live_tour_step2_title">Meet Your Floating Ring</string>
+    <string name="live_tour_step2_desc">Once enabled, the Orbit bubble docks neatly to the edge of your screen. Tap it to expand into your quick-action circular ring, drag it anywhere, or customize its size right here.</string>
+    <string name="live_tour_step3_badge">STEP 3 · STUDIO SHORTCUTS</string>
+    <string name="live_tour_step3_title">Notice Where We Are: Studio → Shortcut</string>
+    <string name="live_tour_step3_desc">Orbit now took you to Studio → Shortcut (the 4th sub-tab). This is Orbit\'s System Shade Shortcut engine!</string>
+    <string name="live_tour_step4_badge">STEP 4 · SYSTEM SHADE</string>
+    <string name="live_tour_step4_title">Pin Apps to Notification Drawer</string>
+    <string name="live_tour_step4_desc">Why use it? Pin your favorite apps directly to Android\'s notification shade for 1-swipe access without returning to the home screen. Tap \"+ Add Shortcut\" to pick an app and pin it!</string>
+    <string name="live_tour_step4_callout">1-Swipe access from anywhere, even inside games &amp; video apps!</string>
+    <string name="live_tour_next">Next</string>
+    <string name="live_tour_finish">Finish Tour</string>
+    <string name="live_tour_skip">Skip Tour</string>
+    <string name="live_tour_back">Back</string>
+    <string name="live_tour_replay_setting">Interactive App Tour</string>
+    <string name="live_tour_replay_setting_desc">Replay the step-by-step guide explaining Orbit activation &amp; Shortcuts</string>
 </resources>

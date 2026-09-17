@@ -45,6 +45,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -292,6 +293,10 @@ fun LauncherTabContent(
                         fontSize = 13.5.sp
                     )
                 },
+                textStyle = TextStyle(
+                    fontSize = 14.sp,
+                    color = Color.White
+                ),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
@@ -302,7 +307,7 @@ fun LauncherTabContent(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(58.dp),
                 singleLine = true,
                 leadingIcon = {
                     Box(

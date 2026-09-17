@@ -24,6 +24,7 @@ object ThemePreferences {
     private const val KEY_USAGE_PERMISSION_SKIPPED = "usage_permission_skipped"
     private const val KEY_USAGE_WARNING_DISMISSED = "usage_warning_dismissed"
     private const val KEY_INTRO_SEEN = "intro_seen"
+    private const val KEY_LIVE_TOUR_COMPLETED = "live_interactive_tour_completed"
     private const val KEY_LANG_SELECTED = "lang_selected_v2"
     private const val KEY_USERNAME = "user_profile_name"
 
@@ -60,6 +61,16 @@ object ThemePreferences {
     fun setIntroSeen(context: Context, seen: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_INTRO_SEEN, seen).apply()
+    }
+
+    fun isLiveTourCompleted(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_LIVE_TOUR_COMPLETED, false)
+    }
+
+    fun setLiveTourCompleted(context: Context, completed: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_LIVE_TOUR_COMPLETED, completed).apply()
     }
 
     fun isUsagePermissionSkipped(context: Context): Boolean {

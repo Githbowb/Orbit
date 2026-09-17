@@ -21,6 +21,9 @@ import androidx.core.os.LocaleListCompat
 import com.example.shortcut.ShortcutNotificationManager
 import com.example.shortcut.ShortcutNotificationPreferences
 import com.example.shortcut.ShortcutNotificationScreen
+import com.example.tutorial.LiveTourGuideOverlay
+import com.example.tutorial.TourStep
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.animation.AnimatedVisibility
@@ -328,6 +331,29 @@ fun MainScreen(
 
     val accentColor = activeTheme.getColor()
 
+    // Live interactive tour state
+    var isLiveTourActive by remember { mutableStateOf(!ThemePreferences.isLiveTourCompleted(context)) }
+    var currentTourStep by remember { mutableStateOf(TourStep.ACTIVATE_ORBIT) }
+
+    fun handleTourStepChange(newStep: TourStep) {
+        currentTourStep = newStep
+        when (newStep) {
+            TourStep.ACTIVATE_ORBIT,
+            TourStep.ORBIT_RING_FEATURES -> {
+                selectedTab = MainTab.ORBIT
+            }
+            TourStep.FIND_SHORTCUT_SECTION,
+            TourStep.PIN_SYSTEM_SHORTCUTS -> {
+                selectedTab = MainTab.STUDIO
+            }
+        }
+    }
+
+    fun dismissLiveTour() {
+        isLiveTourActive = false
+        ThemePreferences.setLiveTourCompleted(context, true)
+    }
+
     // Collect permissions state dynamically
     val isOverlayGranted by isOverlayGrantedFlow.collectAsState()
     val isUsageGranted by isUsageGrantedFlow.collectAsState()
@@ -488,7 +514,7 @@ fun MainScreen(
                         }
                     },
                     isNotificationGranted = isNotificationGranted,
-                    initialStudioMode = if (openShortcutDirectly) 3 else 0
+                    initialStudioMode = if (openShortcutDirectly || currentTourStep == TourStep.FIND_SHORTCUT_SECTION || currentTourStep == TourStep.PIN_SYSTEM_SHORTCUTS) 3 else 0
                 )
                 MainTab.TOOLS -> ToolsTabContent(
                     context = context,
@@ -517,7 +543,20 @@ fun MainScreen(
                     onSkipUsage = { skipped ->
                         ThemePreferences.setUsagePermissionSkipped(context, skipped)
                         isUsageSkipped = skipped
+                    },
+                    onRestartLiveTour = {
+                        isLiveTourActive = true
+                        handleTourStepChange(TourStep.ACTIVATE_ORBIT)
                     }
+                )
+            }
+
+            if (isLiveTourActive) {
+                LiveTourGuideOverlay(
+                    currentStep = currentTourStep,
+                    isServiceRunning = isServiceRunning,
+                    onStepChange = { nextStep -> handleTourStepChange(nextStep) },
+                    onDismissTour = { dismissLiveTour() }
                 )
             }
         }
@@ -3271,7 +3310,10 @@ fun StudioTabContent(
 }
 
 @Composable
-fun ToolsTabContent(context: Context, accentColor: Color) {
+fun ToolsTabContent(
+    context: Context,
+    accentColor: Color
+) {
     val scrollState = rememberScrollState()
     val signalOrange = Color(0xFFFF6B35)
     val inkLight = Color(0xFFEEF0F6)
@@ -3334,7 +3376,8 @@ fun ToolsTabContent(context: Context, accentColor: Color) {
 
             tools.forEachIndexed { index, (info, icon) ->
                 val (title, subtitle, key) = info
-                val isEnabled = ToolsPreferences.isToolEnabled(context, key)
+                val isPermanent = (key == ToolsPreferences.KEY_LAUNCHPAD || key == ToolsPreferences.KEY_OCR)
+                val isEnabled = if (isPermanent) true else ToolsPreferences.isToolEnabled(context, key)
 
                 Row(
                     modifier = Modifier
@@ -3376,19 +3419,50 @@ fun ToolsTabContent(context: Context, accentColor: Color) {
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    Switch(
-                        checked = isEnabled,
-                        onCheckedChange = { checked ->
-                            ToolsPreferences.setToolEnabled(context, key, checked)
-                            refreshCounter++
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = signalOrange,
-                            uncheckedThumbColor = inkDim,
-                            uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                    if (isPermanent) {
+                        // The option to disable OCR and App Launcher is deleted.
+                        // Instead, display locked "Always Active" badge.
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(signalOrange.copy(alpha = 0.14f))
+                                .border(1.dp, signalOrange.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = signalOrange,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.tool_always_active),
+                                    color = signalOrange,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    } else {
+                        Switch(
+                            checked = isEnabled,
+                            onCheckedChange = { checked ->
+                                ToolsPreferences.setToolEnabled(context, key, checked)
+                                refreshCounter++
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = signalOrange,
+                                uncheckedThumbColor = inkDim,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                            )
                         )
-                    )
+                    }
                 }
 
                 if (index < tools.size - 1) {
@@ -3416,7 +3490,8 @@ fun SettingsTabContent(
     onRequestOverlay: () -> Unit,
     onRequestUsage: () -> Unit,
     onRequestNotification: () -> Unit,
-    onSkipUsage: (Boolean) -> Unit
+    onSkipUsage: (Boolean) -> Unit,
+    onRestartLiveTour: (() -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     val signalOrange = Color(0xFFFF6B35)
@@ -3514,6 +3589,28 @@ fun SettingsTabContent(
             )
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+            if (onRestartLiveTour != null) {
+                // Interactive App Tour Replay Option
+                SetupOptionRow(
+                    title = stringResource(id = R.string.live_tour_replay_setting),
+                    subtitle = stringResource(id = R.string.live_tour_replay_setting_desc),
+                    icon = Icons.Default.Explore,
+                    iconColor = signalOrange,
+                    iconBgColor = signalOrange.copy(alpha = 0.15f),
+                    onClick = onRestartLiveTour,
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = inkDim,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+            }
 
             // Display over other apps permission
             SetupOptionRow(

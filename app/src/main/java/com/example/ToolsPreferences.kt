@@ -24,11 +24,15 @@ object ToolsPreferences {
     )
 
     fun isToolEnabled(context: Context, toolKey: String): Boolean {
+        // App Launcher and OCR are permanently active core features and cannot be disabled
+        if (toolKey == KEY_LAUNCHPAD || toolKey == KEY_OCR) return true
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(toolKey, true)
     }
 
     fun setToolEnabled(context: Context, toolKey: String, enabled: Boolean) {
+        // App Launcher and OCR cannot be modified or disabled
+        if (toolKey == KEY_LAUNCHPAD || toolKey == KEY_OCR) return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(toolKey, enabled).apply()
     }
